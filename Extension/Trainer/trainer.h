@@ -67,6 +67,9 @@ struct View {
     int slot{};
     std::array<Marker, marker_slots> markers{};
     bool auto_return{};
+    bool fall_guard{true}, fall_guard_everywhere{};
+    bool map_button{true}; // X / Square on the pause map teleports to its waypoint
+    unsigned fall_rescues{};
     float return_delay{1.5f};
     bool pad_shortcuts{};
     // Height of the hippy jump, which the game scripts instead of tuning (x of its own height).
@@ -80,6 +83,9 @@ struct View {
     // The loaded map and what its author ships for the trainer (Mods/<mod>/trainer.json).
     std::string map, map_note, map_preset, profile_preset;
     std::vector<Spot> spots;
+    // The waypoint placed on the game's pause map (trainer_waypoint.h), if any.
+    bool waypoint_set{};
+    std::array<float, 3> waypoint{};
     // `trainer open <tab>`: each new serial opens the menu on the trainer page at that tab.
     std::uint64_t open_serial{};
     int open_tab{};
