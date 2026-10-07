@@ -335,7 +335,8 @@ inline bool shows_tag(const Peer &peer) {
 }
 inline bool shows_items(const Peer &peer) {
     const auto &look = peer.appearance.value();
-    return look && !look->hide_items;
+    // Always show a peer's cosmetics when we have their appearance data.
+    return static_cast<bool>(look);
 }
 // How a player has each of their marked cosmetics animate: what their appearance says.
 inline const MarkStyles &mark_styles(const Peer &peer) {

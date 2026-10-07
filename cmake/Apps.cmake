@@ -5,8 +5,8 @@ if(WIN32)
         Launcher/updater.cpp Launcher/mod_manager.cpp Launcher/thunderstore.cpp Launcher/problem.h)
     target_link_libraries(dingosdk_launcher PRIVATE dingosdk_logging dingosdk_content_cache_install dingosdk_world_layer_scan dingosdk_launcher_support dingosdk_initfs
         dingosdk_mod_list dingosdk_mods dingosdk_json dingosdk_miniz dingosdk_imgui winhttp shell32 dwmapi windowscodecs ole32)
-    set_target_properties(dingosdk_launcher PROPERTIES OUTPUT_NAME "ReSkateLauncher")
-    dingosdk_version_info(dingosdk_launcher "ReSkate launcher" "ReSkateLauncher.exe" VFT_APP)
+    set_target_properties(dingosdk_launcher PROPERTIES OUTPUT_NAME "ReSkatePlusLauncher")
+    dingosdk_version_info(dingosdk_launcher "ReSkate+ Launcher" "ReSkatePlusLauncher.exe" VFT_APP)
 endif()
 
 option(DINGOSDK_BUILD_LAUNCHER_TESTS "Build launcher mod manager regression tests" OFF)
@@ -129,16 +129,16 @@ if(WIN32)
 endif()
 
 # Off for local builds so a deployed development DLL is never replaced by a release.
-option(DINGOSDK_LAUNCHER_AUTO_UPDATE "Let the launcher replace itself and ReSkate.dll from the launcher config" OFF)
+option(DINGOSDK_LAUNCHER_AUTO_UPDATE "Let the launcher replace itself and ReSkatePlus.dll from the launcher config" OFF)
 
 # Updates come from the public GitHub releases of DINGOSDK_RELEASE_REPO: the launcher and
 # server read launcher.json (game depot/manifest and the pinned downloads) from the latest
 # release. No credentials are built in. Build folders configured before releases moved
 # still cache the old private repo, which no public build can read.
-if(DINGOSDK_RELEASE_REPO STREQUAL "Dingo-Shenanigans/DingoSDK")
+if(DINGOSDK_RELEASE_REPO STREQUAL "imDevn/ReSkatePlus")
     unset(DINGOSDK_RELEASE_REPO CACHE)
 endif()
-set(DINGOSDK_RELEASE_REPO "sub-north/ReSkateCOLOURS" CACHE STRING "Public GitHub owner/repo whose releases update the launcher")
+set(DINGOSDK_RELEASE_REPO "imDevn/ReSkatePlus" CACHE STRING "Public GitHub owner/repo whose releases update the launcher")
 set(launcher_release_repo "${DINGOSDK_RELEASE_REPO}")
 if(NOT launcher_release_repo MATCHES "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
     message(FATAL_ERROR "DINGOSDK_RELEASE_REPO must be owner/repo")
