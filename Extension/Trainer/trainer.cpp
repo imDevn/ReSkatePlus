@@ -3,6 +3,9 @@
 #include "trainer_jump.h"
 #include "trainer_presets.h"
 #include "trainer_session.h"
+#include "trainer_landing.h"
+#include "trainer_fall_guard.h"
+#include "trainer_waypoint.h"
 #include "trainer_waypoint.h"
 #include "Extension/Multiplayer/Hud/game_ui_state.h"
 #include "Engine/Core/Json/json.h"
@@ -116,6 +119,10 @@ struct State {
     MapFile map_file;
     int slot{};
     bool auto_return{}, pad_shortcuts{}, hud{}, hud_jump{}, logging{};
+    // Fall-through guard (`option fall_guard`, off until asked for): the last spot the skater
+    // stood on, and a rescue to the surface when they drop through the map into nothing.
+    bool fall_guard{};
+    struct Guard { std::optional<Vec3> safe; std::uint64_t next_safe{}, next_check{}, quiet_until{}; unsigned rescues{}; } guard;
     // The hippy jump's height is set by the game's trick scripts, not by tuning: the trainer
     // scales the upward velocity when it sees one start.
     float hippy_height{1};
@@ -148,23 +155,14 @@ struct State {
     bool wipeouts_known{}; // the wipeout count the session started with was read
     int open_tab{};
     std::uint32_t pad_previous{};
-    // The pause map's waypoint as last published, and the level it was placed on.
+    // The pause map's waypoint. The registry is read only while the player has a use for the
+    // answer (the TELEPORT card is on screen, or `trainer waypoint`), and the waypoint is
+    // forgotten on a new level: it belonged to the old one.
     std::optional<Vec3> waypoint;
-    std::string waypoint_level;
-    // A ground-snapped arrival (the map waypoint): after the teleport, collision at the spot
-    // may still be streaming in, so the skater is watched and put back on the topmost
-    // surface there if it sinks through. One at a time; `until` ends the watch.
-    struct Landing { bool active{}; float x{}, z{}; std::uint64_t until{}, next{}; int fixes{}; float y{}; int resend{}; std::uint64_t resend_at{}; } landing;
-    // Fall-through guard (custom maps by default): the last spot the skater stood on solid
-    // ground, and a rescue to the ground above when they drop through the map into nothing.
-    bool fall_guard{true}, fall_guard_everywhere{};
-    // One tap of X / Square on the pause map teleports to the waypoint. The press is acted on
-    // a moment later (`at`), so a waypoint the same press placed is the one used; `before` is
-    // the waypoint that was there first, in case the game's X removed it instead.
-    bool map_button{true}, map_open{};
-    struct MapTap { std::uint64_t at{}; std::optional<Vec3> before; } map_tap;
-    std::uint64_t map_seen_at{};
-    struct Guard { bool safe_valid{}; Vec3 safe{}; std::uint64_t next_safe{}, next_check{}, quiet_until{}; unsigned rescues{}; } guard;
+    std::string waypoint_detail, waypoint_level;
+    std::uint64_t waypoint_wanted_until{}, waypoint_next_read{};
+    // A ground-snapped arrival being watched (trainer_landing.h).
+    landing::Watch landing;
     Motion motion;
     Telemetry telemetry;
     std::ofstream log;
@@ -254,9 +252,7 @@ void load_store() {
         if (json->contains("options") && json->at("options").is_object()) {
             const auto &o = json->at("options");
             s.auto_return = o.value("auto_return", false);
-            s.fall_guard = o.value("fall_guard", true);
-            s.map_button = o.value("map_button", true);
-            s.fall_guard_everywhere = o.value("fall_guard_everywhere", false);
+            s.fall_guard = o.value("fall_guard", false);
             s.pad_shortcuts = o.value("pad_shortcuts", false);
             s.hud = o.value("hud", false);
             s.hud_jump = o.value("hud_jump", false);
@@ -304,8 +300,6 @@ void save_store() {
         Json options = Json::object();
         options["auto_return"] = s.auto_return;
         options["fall_guard"] = s.fall_guard;
-        options["map_button"] = s.map_button;
-        options["fall_guard_everywhere"] = s.fall_guard_everywhere;
         options["pad_shortcuts"] = s.pad_shortcuts;
         options["hud"] = s.hud;
         options["hud_jump"] = s.hud_jump;
@@ -958,6 +952,9 @@ void enter_map(const std::string &level) {
     s.motion = {};
     s.telemetry.last = {};
     s.telemetry.best = {};
+    s.landing = {};
+    s.guard = {};
+    s.guard.quiet_until = GetTickCount64() + fall_guard::settle_ms; // the skater spawns and settles
     s.telemetry.top_speed = 0;
     s.return_at = 0;
     s.profile_due = false;
@@ -991,141 +988,101 @@ std::string go_to(const Vec3 &position, const std::string &what) {
     return "Teleporting to " + what + ".";
 }
 
-// ---- ground-safe arrivals and the fall-through guard ------------------------------------
-// The ray starts this far above the highest point of interest: the closest hit from there
-// is the topmost surface (a deck or a roof wins over the street under it).
-constexpr float ground_ceiling = 1500.0f, ground_floor = -1500.0f;
-constexpr float stand_height = 0.5f; // above the surface: the native teleport settles from here
+// ---- ground-safe arrivals -------------------------------------------------------------
+// The topmost collision surface at x, z (trainer_landing.h for the ray), from the client
+// physics world. Empty while collision there is still streaming in.
+std::optional<float> topmost_ground(float x, float z, float hint_y) {
+    const auto first = landing::first_ray(hint_y);
+    if (const auto hit = local_ground_height(x, z, first.top, first.bottom)) return hit;
+    if (const auto retry = landing::retry_ray(first)) return local_ground_height(x, z, retry->top, retry->bottom);
+    return std::nullopt;
+}
 
-bool custom_level(const std::string &key) { return key.find("dingolevel_reskate") != std::string::npos; }
-bool noclip_on() { return client_source::detail::source_state().trial.debug.noclip; }
-
+// Teleports onto the surface at x, z rather than to a raw height: a map waypoint's height is
+// not the ground, and arriving under it drops the skater through the map.
 std::string land_at(float x, float z, float hint_y, const std::string &what) {
     auto &s = state();
-    const auto ground = local_ground_height(x, z, std::max(ground_ceiling, hint_y + 500.0f), ground_floor);
-    // Collision far away may not be loaded yet: go to the marker's own height, and the
-    // landing watch below puts the skater on the surface once it streams in.
-    const Vec3 at{x, ground ? *ground + stand_height : hint_y + 2.0f, z};
-    auto answer = go_to(at, what);
+    const auto ground = topmost_ground(x, z, hint_y);
+    // Collision far away may not be loaded yet: go to the hint's height, and the landing
+    // watch puts the skater on the surface once it streams in.
+    const Vec3 to{x, ground ? *ground + landing::stand_height : hint_y + 2.0f, z};
+    const auto answer = go_to(to, what);
     if (answer.starts_with("error")) return answer;
-    s.landing = {true, x, z, GetTickCount64() + 12000, GetTickCount64() + 1500, 0, at[1], 3, GetTickCount64() + 2500};
-    s.guard.quiet_until = GetTickCount64() + 2000;
-    say(logging::Level::info, ground ? std::format("Trainer: landing on the surface at {:.1f}, {:.1f}, {:.1f}.", at[0], at[1], at[2])
-                                     : std::format("Trainer: no collision at {:.1f}, {:.1f} yet; going to height {:.1f} and waiting for the ground.", x, z, at[1]));
-    return ground ? answer.substr(0, answer.size() - 1) + std::format(" (ground at {:.1f}).", *ground)
-                  : answer.substr(0, answer.size() - 1) + " (the ground there is still loading; you'll be put on it when it arrives).";
+    s.landing = landing::start(x, z, to[1], GetTickCount64());
+    say(logging::Level::info, ground ? std::format("Trainer: landing on the surface at {:.1f}, {:.1f}, {:.1f}.", to[0], to[1], to[2])
+                                     : std::format("Trainer: no collision at {:.1f}, {:.1f} yet; going to height {:.1f} and waiting for the ground.", x, z, to[1]));
+    const auto stem = answer.substr(0, answer.size() - 1);
+    return ground ? stem + std::format(" (ground at {:.1f}).", *ground)
+                  : stem + " (the ground there is still loading; you'll be put on it when it arrives).";
 }
 
 void update_landing(std::uint64_t now) {
     auto &s = state();
-    auto &l = s.landing;
-    if (!l.active || now < l.next || !s.telemetry.skater) return;
-    l.next = now + 150;
+    auto &w = s.landing;
+    if (!w.active || now < w.next || !s.telemetry.skater) return;
     const auto &p = s.telemetry.position;
-    if (now > l.until || l.fixes >= 6) {
-        l.active = false;
-        say(logging::Level::info, std::format("Trainer: landing watch ended at {:.1f}, {:.1f}, {:.1f} after {} correction(s).", p[0], p[1], p[2], l.fixes));
-        return;
+    landing::Sample sample{.now = now, .position = p, .vertical = s.telemetry.vertical, .ground = std::nullopt, .may_resend = true};
+    const float dx = p[0] - w.x, dz = p[2] - w.z;
+    if (dx * dx + dz * dz <= landing::arrived_radius * landing::arrived_radius) sample.ground = topmost_ground(p[0], p[2], p[1]);
+    switch (landing::step(w, sample)) {
+    case landing::Step::resend: {
+        const auto ground = topmost_ground(w.x, w.z, w.y);
+        (void)go_to({w.x, ground ? *ground + landing::stand_height : w.y, w.z}, "the same spot");
+        say(logging::Level::info, "Trainer: the teleport hadn't arrived; sent it again.");
+        break;
     }
-    // Wait for the teleport to arrive. One sent from the pause map may be dropped while the
-    // game is paused: send it again (at most three times) once the skater is still far away.
-    const float dx = p[0] - l.x, dz = p[2] - l.z;
-    if (dx * dx + dz * dz > 30.0f * 30.0f) {
-        if (l.resend && now >= l.resend_at && !s.map_open) {
-            --l.resend;
-            l.resend_at = now + 2500;
-            l.until = std::max(l.until, now + 8000);
-            const auto ground = local_ground_height(l.x, l.z, ground_ceiling, ground_floor);
-            (void)go_to({l.x, ground ? *ground + stand_height : l.y, l.z}, "your map waypoint");
-            say(logging::Level::info, "Trainer: the waypoint teleport hadn't arrived; sent again.");
-        }
-        return;
-    }
-    const auto ground = local_ground_height(p[0], p[2], std::max(ground_ceiling, p[1] + 500.0f), ground_floor);
-    if (!ground) return; // still streaming
-    if (p[1] < *ground - 1.0f) {
-        ++l.fixes;
-        l.next = now + 1500; // the native teleport takes a moment
-        s.guard.quiet_until = now + 2000;
-        (void)go_to({p[0], *ground + stand_height, p[2]}, "the surface");
-        say(logging::Level::info, std::format("Trainer: sank to {:.1f} under the surface at {:.1f}; put back on it.", p[1], *ground));
-        return;
-    }
-    if (std::abs(p[1] - *ground) < 2.5f && std::abs(s.telemetry.vertical) < 1.5f) {
-        l.active = false;
+    case landing::Step::put_back:
+        (void)go_to({p[0], *sample.ground + landing::stand_height, p[2]}, "the surface");
+        say(logging::Level::info, std::format("Trainer: sank to {:.1f} under the surface at {:.1f}; put back on it.", p[1], *sample.ground));
+        break;
+    case landing::Step::landed:
         say(logging::Level::info, std::format("Trainer: landed at {:.1f}, {:.1f}, {:.1f}.", p[0], p[1], p[2]));
+        break;
+    case landing::Step::ended:
+        say(logging::Level::info, std::format("Trainer: landing watch ended at {:.1f}, {:.1f}, {:.1f} after {} correction(s).", p[0], p[1], p[2], w.fixes));
+        break;
+    case landing::Step::wait: break;
     }
 }
 
-// X / Square while the pause map is open: teleport to the waypoint on it.
-void update_map_button(std::uintptr_t base, std::uint64_t now) {
-    auto &s = state();
-    ControllerInput input;
-    DingoSDKOverlayReadControllerInput(&input);
-    const auto buttons = input.available ? input.buttons : 0;
-    static std::uint32_t previous{};
-    const auto pressed = buttons & ~previous;
-    previous = buttons;
-    // The map is open: the game is in a menu and the map has built its points of interest.
-    const auto ui = multiplayer::sample_game_ui_state(base);
-    const auto &wp = poll_map_waypoint(base, now);
-    const bool open = ui.in_menu && wp.pois > 0;
-    if (open != s.map_open) {
-        s.map_open = open;
-        say(logging::Level::info, std::format("Trainer: pause map {} (menu={}, map POIs={}).", open ? "open" : "closed", ui.in_menu, wp.pois));
-    }
-    if (s.map_tap.at && now >= s.map_tap.at) {
-        s.map_tap.at = 0;
-        const auto fresh = poll_map_waypoint(base, now, 0).position;
-        const auto target = fresh ? fresh : s.map_tap.before;
-        if (!target) {
-            overlay::notify(overlay::NoticeLevel::info, "TRAINER", "No waypoint on the map yet: place one, then press X / Square.");
-            return;
-        }
-        const auto answer = land_at((*target)[0], (*target)[2], (*target)[1], "your map waypoint");
-        overlay::notify(answer.starts_with("error") ? overlay::NoticeLevel::warning : overlay::NoticeLevel::info, "TRAINER",
-                        answer.starts_with("error") ? answer.substr(7) : answer);
-        return;
-    }
-    if (!s.map_button || !open || !(pressed & xinput_x) || (buttons & (xinput_lb | xinput_rb))) return;
-    s.map_tap = {now + 300, wp.position};
-}
-
+// A fast fall with nothing at all below went through the map, not off a ledge: back to the
+// surface above the skater, or else the last place they stood.
 void update_fall_guard(std::uint64_t now) {
     auto &s = state();
     auto &g = s.guard;
     const auto &t = s.telemetry;
-    if (!s.fall_guard || !t.skater || (!s.fall_guard_everywhere && !custom_level(s.map)) || noclip_on() ||
-        now < g.quiet_until) return;
+    if (!s.fall_guard || !t.skater || now < g.quiet_until || client_source::detail::source_state().trial.debug.noclip) return;
+    std::string why;
+    if (!teleport_allowed(why)) return; // a host who turned teleporting off turned this off too
     const auto &p = t.position;
-    // A safe spot: standing or rolling on something solid right under the skater.
-    if (now >= g.next_safe && std::abs(t.vertical) < 1.0f && !t.airborne) {
-        g.next_safe = now + 500;
-        if (const auto below = local_ground_height(p[0], p[2], p[1] + 1.0f, p[1] - 3.0f)) {
-            g.safe = {p[0], *below, p[2]};
-            g.safe_valid = true;
-        }
+    if (now >= g.next_safe && fall_guard::steady(t.vertical, t.airborne)) {
+        g.next_safe = now + fall_guard::safe_every_ms;
+        if (const auto below = local_ground_height(p[0], p[2], p[1] + 1.0f, p[1] - 3.0f)) g.safe = Vec3{p[0], *below, p[2]};
     }
     if (now < g.next_check) return;
-    g.next_check = now + 100;
-    const bool falling = t.vertical < -10.0f;
-    const bool deep = g.safe_valid && p[1] < g.safe[1] - 25.0f;
-    if (!(falling && deep) && p[1] > -2000.0f) return;
-    // Nothing at all under a long fall: it went through the map, not off a ramp.
-    if (local_ground_height(p[0], p[2], p[1], p[1] - 1000.0f)) return;
-    // The topmost surface where the skater is now, else the last safe spot.
-    const auto above = local_ground_height(p[0], p[2], std::max(g.safe[1], p[1]) + 50.0f, p[1]);
-    const Vec3 to = above ? Vec3{p[0], *above + stand_height, p[2]} : Vec3{g.safe[0], g.safe[1] + stand_height, g.safe[2]};
-    const auto answer = go_to(to, "solid ground");
-    g.quiet_until = now + 3000;
-    if (answer.starts_with("error")) {
-        say(logging::Level::warning, "Trainer fall guard: fell through the map but could not teleport: " + answer);
-        return;
-    }
+    g.next_check = now + fall_guard::check_every_ms;
+    if (!fall_guard::suspect(p[1], t.vertical, g.safe ? std::optional<float>((*g.safe)[1]) : std::nullopt)) return;
+    if (local_ground_height(p[0], p[2], p[1], p[1] - 1000.0f)) return; // something to land on
+    const float top = (g.safe ? std::max((*g.safe)[1], p[1]) : p[1]) + 50.0f;
+    const auto above = local_ground_height(p[0], p[2], std::max(top, landing::ray_ceiling), p[1]);
+    if (!above && !g.safe) return;
+    const Vec3 to = above ? Vec3{p[0], *above + landing::stand_height, p[2]} : Vec3{(*g.safe)[0], (*g.safe)[1] + landing::stand_height, (*g.safe)[2]};
+    g.quiet_until = now + fall_guard::after_rescue_ms;
+    if (go_to(to, "solid ground").starts_with("error")) return;
     ++g.rescues;
     s.view_due = true;
     say(logging::Level::info, std::format("Trainer fall guard: fell through the map at {:.1f}, {:.1f}, {:.1f}; back to {} at {:.1f}, {:.1f}, {:.1f}.",
                                           p[0], p[1], p[2], above ? "the surface above" : "the last safe spot", to[0], to[1], to[2]));
+}
+
+void refresh_waypoint() {
+    auto &s = state();
+    const auto read = read_map_waypoint(s.base);
+    s.waypoint_detail = read.detail;
+    if (const auto next = landing::remembered(s.waypoint, read.reading); next != s.waypoint) {
+        s.waypoint = next;
+        s.view_due = true;
+    }
 }
 
 // ---- telemetry -------------------------------------------------------------------------
@@ -1519,8 +1476,6 @@ void build_view() {
     next->slot = s.slot;
     next->auto_return = s.auto_return;
     next->fall_guard = s.fall_guard;
-    next->map_button = s.map_button;
-    next->fall_guard_everywhere = s.fall_guard_everywhere;
     next->fall_rescues = s.guard.rescues;
     next->hippy_height = s.hippy_height;
     next->nocomply_height = s.nocomply_height;
@@ -1570,14 +1525,15 @@ void tick(std::uintptr_t base, std::uintptr_t client, bool playing, const std::s
         sync_session();
         s.boosts = boosts_in_force();
         if (const auto key = lower(playing ? level : std::string{}); key != s.map) enter_map(key);
-        // The pause map's waypoint. Polled out of play too: the map screen is open then.
         if (const auto key = lower(level); !key.empty() && key != s.waypoint_level) {
             s.waypoint_level = key;
-            forget_map_waypoint();
-        }
-        if (const auto &wp = poll_map_waypoint(base, now); wp.position != s.waypoint) {
-            s.waypoint = wp.position;
+            s.waypoint.reset();
             s.view_due = true;
+        }
+        if (take_teleport_card_shown()) s.waypoint_wanted_until = now + 1000;
+        if (now < s.waypoint_wanted_until && now >= s.waypoint_next_read) {
+            s.waypoint_next_read = now + 250;
+            refresh_waypoint();
         }
         if (playing) {
             observe(base, client, now);
@@ -1594,7 +1550,6 @@ void tick(std::uintptr_t base, std::uintptr_t client, bool playing, const std::s
             s.motion.valid = false;
             s.entity = 0;
         }
-        update_map_button(base, now);
         (void)start_trick_heights(base);
         if (take_class_list_shown()) s.class_list_wanted = true;
         // The search reads all of the game's writable memory, so it runs only for a player with
@@ -1791,16 +1746,26 @@ std::string run(std::string_view verb, const std::vector<std::string> &a) {
         if (!x || !z) return "error: usage: trainer ground <x> <z>  (teleport to the topmost surface there)";
         return land_at(static_cast<float>(*x), static_cast<float>(*z), s.telemetry.position[1], "the ground there");
     }
+    if (v == "waypoint") {
+        refresh_waypoint();
+        if (lower(arg(0)) == "info")
+            return "Map waypoint: " + (s.waypoint ? std::format("{:.1f}, {:.1f}, {:.1f}", (*s.waypoint)[0], (*s.waypoint)[1], (*s.waypoint)[2]) : std::string("none")) +
+                   " (" + s.waypoint_detail + ").";
+        if (!s.waypoint) return "error: no waypoint on the map. Open the pause map and place one first.";
+        return land_at((*s.waypoint)[0], (*s.waypoint)[2], (*s.waypoint)[1], "your map waypoint");
+    }
     if (v == "tp") {
         const auto x = number(arg(0)), y = number(arg(1)), z = number(arg(2));
         if (!x || !y || !z) return "error: usage: trainer tp <x> <y> <z>";
         return go_to({static_cast<float>(*x), static_cast<float>(*y), static_cast<float>(*z)}, "that point");
     }
     if (v == "waypoint") {
-        const auto &wp = poll_map_waypoint(s.base, GetTickCount64(), 0);
-        if (lower(arg(0)) == "info") return "Map waypoint: " + (wp.position ? std::format("({:.1f}, {:.1f}, {:.1f})", (*wp.position)[0], (*wp.position)[1], (*wp.position)[2]) : std::string("none")) + ". " + wp.detail;
-        if (!wp.position) return "error: no waypoint on the map. Open the map and place one first.";
-        return land_at((*wp.position)[0], (*wp.position)[2], (*wp.position)[1], "your map waypoint");
+        refresh_waypoint();
+        if (lower(arg(0)) == "info")
+            return "Map waypoint: " + (s.waypoint ? std::format("{:.1f}, {:.1f}, {:.1f}", (*s.waypoint)[0], (*s.waypoint)[1], (*s.waypoint)[2]) : std::string("none")) +
+            " (" + s.waypoint_detail + ").";
+        if (!s.waypoint) return "error: no waypoint on the map. Open the pause map and place one first.";
+        return land_at((*s.waypoint)[0], (*s.waypoint)[2], (*s.waypoint)[1], "your map waypoint");
     }
     if (v == "spot") {
         const auto index = number(arg(0));
@@ -1828,13 +1793,11 @@ std::string run(std::string_view verb, const std::vector<std::string> &a) {
             if (!value) return "error: return_delay needs seconds.";
             s.return_delay = std::clamp(static_cast<float>(*value), 0.0f, 10.0f);
         } else if (!flag(arg(1), on)) {
-            return "error: usage: trainer option hud|hud_jump|auto_return|fall_guard|fall_guard_everywhere|map_button|pad|log 0|1";
+            return "error: usage: trainer option hud|hud_jump|auto_return|fall_guard|pad|log 0|1";
         } else if (name == "hud") s.hud = on;
         else if (name == "hud_jump") s.hud_jump = on;
         else if (name == "auto_return") s.auto_return = on;
         else if (name == "fall_guard") s.fall_guard = on;
-        else if (name == "map_button") s.map_button = on;
-        else if (name == "fall_guard_everywhere") s.fall_guard_everywhere = on;
         else if (name == "pad") s.pad_shortcuts = on;
         else if (name == "log") {
             set_logging(on);

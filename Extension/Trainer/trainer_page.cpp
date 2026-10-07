@@ -478,25 +478,17 @@ void practice_tab(SkateMenu &menu, const Model &model, const CallbacksV3 &callba
     end_card();
 
     begin_card(menu, "teleport", "TELEPORT");
+    // The waypoint line is why the map's registry is read at all: only while this is drawn.
+    trainer::note_teleport_card_shown();
     info(menu, "Map waypoint", view.waypoint_set ? std::format("{:.1f}, {:.1f}, {:.1f}", view.waypoint[0], view.waypoint[1], view.waypoint[2])
                                                  : "none - place one on the pause map");
     ImGui::BeginDisabled(!view.waypoint_set || !telemetry.skater);
     if (ImGui::Button("Go to map waypoint")) trainer_command(menu, callbacks, "waypoint");
     ImGui::EndDisabled();
-    bool map_button = view.map_button;
-    if (toggle_row(menu, "X / Square on the map", "On the pause map, one tap of X (Xbox) or Square (PlayStation) "
-                   "takes you to your waypoint.", map_button))
-        trainer_command(menu, callbacks, std::format("option map_button {}", map_button ? 1 : 0));
     bool guard = view.fall_guard;
-    if (toggle_row(menu, "Fall-through guard",
-                   "On custom maps: if you drop through the map into nothing, you're put back on the surface above "
+    if (toggle_row(menu, "Fall-through guard", "If you drop through the map into nothing, you're put back on the surface above "
                    "(or the last place you stood).", guard))
         trainer_command(menu, callbacks, std::format("option fall_guard {}", guard ? 1 : 0));
-    bool everywhere = view.fall_guard_everywhere;
-    ImGui::BeginDisabled(!view.fall_guard);
-    if (toggle_row(menu, "Guard on every map", "Also on the game's own maps.", everywhere))
-        trainer_command(menu, callbacks, std::format("option fall_guard_everywhere {}", everywhere ? 1 : 0));
-    ImGui::EndDisabled();
     if (view.fall_rescues) info(menu, "Rescued", std::format("{} time(s) on this run", view.fall_rescues));
     if (telemetry.skater)
         info(menu, "You are at", std::format("{:.2f}, {:.2f}, {:.2f}", telemetry.position[0], telemetry.position[1], telemetry.position[2]));

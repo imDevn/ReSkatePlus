@@ -8,9 +8,9 @@
 #include <map>
 
 // The pause map keeps every point of interest in one registry (the map POI manager, the same
-// one ReSkate's party markers register into: native_party_hooks.cpp). A waypoint the player
-// places with the map cursor is a POI whose kind (MapObjectData @404) is
-// DingoMapPOIType_Waypoint (3); its world transform is the matrix at @0 (field 9).
+// one ReSkate's party markers register into: native_party_hooks.cpp update_map_markers). A
+// waypoint the player places with the map cursor is a POI whose kind (MapObjectData @404) is
+// DingoMapPOIType_Waypoint (3); its world transform is the matrix at @0.
 namespace dingosdk::trainer {
 namespace {
 namespace party = addr::native_party;
@@ -18,6 +18,7 @@ using Address = std::uintptr_t;
 using Handle = std::uint64_t;
 constexpr std::uint32_t kind_waypoint = 3;
 constexpr std::uint32_t kind_offset = 404;
+constexpr std::uint32_t max_buckets = 65536, max_entries = 20000;
 
 template<class T> bool get(Address address, T &value) { return address && memory::peek(address, value); }
 
@@ -27,8 +28,14 @@ Address model_type(Address base, Address manager, Handle handle) {
     return reinterpret_cast<Address (*)(Address, Handle, Address, std::uint8_t)>(base + party::model_type)(manager, handle, record, 0);
 }
 
-MapWaypoint walk(Address base) {
-    MapWaypoint out;
+bool sane(const std::array<float, 16> &world) {
+    for (const auto i : {12, 13, 14})
+        if (!std::isfinite(world[i]) || std::abs(world[i]) > 1e6f) return false;
+    return true;
+}
+
+MapWaypointRead walk(Address base) {
+    MapWaypointRead out;
     Address map{}, vtable{}, manager{};
     if (!get(base + party::map_manager, map) || !map) { out.detail = "no map POI manager"; return out; }
     if (!get(map, vtable) || vtable != base + party::map_manager_vtable) { out.detail = "map POI manager type differs"; return out; }
@@ -39,7 +46,7 @@ MapWaypoint walk(Address base) {
     Address table{};
     std::uint32_t buckets{}, count{};
     if (!get(map + 0x48, table) || !get(map + 0x50, buckets) || !get(map + 0x54, count) || !table ||
-        buckets > 65536 || count > 20000) { out.detail = "map POI registry unreadable"; return out; }
+        buckets > max_buckets || count > max_entries) { out.detail = "map POI registry unreadable"; return out; }
     const auto poi_type = base + party::map_poi_type;
     std::map<std::uint32_t, unsigned> kinds;
     unsigned visited{};
@@ -52,48 +59,35 @@ MapWaypoint walk(Address base) {
             if (handle && model_type(base, manager, handle) == poi_type) {
                 if (const auto value = n.value(manager, handle, 0, 0)) {
                     std::uint32_t kind{};
-                    std::array<float, 16> world{};
-                    if (get(value + kind_offset, kind)) ++kinds[kind];
-                    if (kind == kind_waypoint && !out.position && get(value, world) &&
-                        std::isfinite(world[12]) && std::isfinite(world[13]) && std::isfinite(world[14]) &&
-                        std::abs(world[12]) < 1e6f && std::abs(world[13]) < 1e6f && std::abs(world[14]) < 1e6f)
-                        out.position = std::array<float, 3>{world[12], world[13], world[14]};
+                    if (get(value + kind_offset, kind)) {
+                        ++kinds[kind];
+                        ++out.reading.typed;
+                        std::array<float, 16> world{};
+                        if (kind == kind_waypoint && !out.reading.waypoint && get(value, world) && sane(world))
+                            out.reading.waypoint = landing::Vec3{world[12], world[13], world[14]};
+                    }
                 }
             }
             if (!get(node + 8, node)) break;
         }
     }
-    out.known = true;
-    out.pois = visited;
-    out.detail = std::format("{} POIs:", visited);
-    for (const auto &[kind, number] : kinds) out.detail += std::format(" kind{}={}", kind, number);
+    out.reading.read = true;
+    out.detail = std::format("{} map POIs", visited);
+    for (const auto &[kind, number] : kinds) out.detail += std::format(", kind {} x{}", kind, number);
     return out;
 }
 } // namespace
 
-namespace {
-MapWaypoint &cache() { static MapWaypoint value; return value; }
-}
-void forget_map_waypoint() noexcept { cache() = {}; }
-
-const MapWaypoint &poll_map_waypoint(std::uintptr_t base, std::uint64_t now, std::uint64_t interval_ms) noexcept {
-    auto &cached = cache();
-    static std::uint64_t next{};
-    if (!base || now < next) return cached;
-    next = now + interval_ms;
+MapWaypointRead read_map_waypoint(std::uintptr_t base) noexcept {
+    if (!base) return {};
     try {
-        auto fresh = walk(base);
-        // The registry may only be populated while the map screen is open. Keep the last
-        // waypoint seen while it can't be read or is empty; a populated registry without a
-        // waypoint means the player removed it.
-        const bool populated = fresh.known && fresh.detail.find("kind") != std::string::npos;
-        if (fresh.position || populated) cached = std::move(fresh);
-        else { cached.detail = fresh.detail; cached.pois = fresh.pois; }
-    } catch (const std::exception &e) {
-        cached.detail = e.what();
-    } catch (...) {
-        cached.detail = "map POI walk failed";
+        return walk(base);
     }
-    return cached;
+    catch (const std::exception& e) {
+        return MapWaypointRead{ .reading = {}, .detail = e.what() };
+    }
+    catch (...) {
+        return MapWaypointRead{ .reading = {}, .detail = "map POI walk failed" };
+    }
 }
 } // namespace dingosdk::trainer

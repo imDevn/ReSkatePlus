@@ -67,9 +67,8 @@ struct View {
     int slot{};
     std::array<Marker, marker_slots> markers{};
     bool auto_return{};
-    bool fall_guard{true}, fall_guard_everywhere{};
-    bool map_button{true}; // X / Square on the pause map teleports to its waypoint
-    unsigned fall_rescues{};
+    bool fall_guard{};       // put back on the surface after falling through the map
+    unsigned fall_rescues{}; // this run
     float return_delay{1.5f};
     bool pad_shortcuts{};
     // Height of the hippy jump, which the game scripts instead of tuning (x of its own height).
@@ -123,6 +122,10 @@ void publish(const Telemetry &) noexcept;
 // for a player who has a use for it: this is one. Any thread; the game thread takes the note.
 void note_class_list_shown() noexcept;
 bool take_class_list_shown() noexcept;
+// The menu is drawing the TELEPORT card, which shows the pause map's waypoint. The map's
+// registry is read only while it is. Any thread; the game thread takes the note.
+void note_teleport_card_shown() noexcept;
+bool take_teleport_card_shown() noexcept;
 
 // Game thread (trainer.cpp).
 // Each client tick; `playing` while a local skater can exist, `level` the loaded level asset.
