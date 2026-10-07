@@ -12,6 +12,7 @@
 #include "Extension/Objects/ParkEditor/park_editor_runtime.h"
 #include "Extension/Skater/style_editor.h"
 #include "Extension/Skater/style_stage.h"
+#include "Extension/Multiplayer/Hud/game_ui_state.h"
 #include "Engine/Game/Build/addresses.h"
 #include "Engine/Game/Build/20260929/style.h"
 #include "Extension/Profile/local_profile_runtime.h"
@@ -830,6 +831,38 @@ overlay::DebugModel on_client_debug_tick(std::uintptr_t base, std::uintptr_t cli
         model.ui_available = can_control;
         model.game_ui_hidden = !ui.draw;
     } catch (...) {}
+
+    // Reapply the user's persisted HideGameUI preference whenever the native
+    // game menu closes (transition in_menu: true -> false). Also attempt an
+    // initial apply if the menu is already closed on first tick.
+    static bool last_in_menu_known = false;
+    static bool last_in_menu = false;
+    try {
+                const auto game_ui = dingosdk::multiplayer::sample_game_ui_state(base);
+        const bool in_menu = game_ui.in_menu;
+            if (!last_in_menu_known) {
+                // First observation: if menu is closed, try to apply saved preference now.
+                last_in_menu_known = true;
+                last_in_menu = in_menu;
+                if (!in_menu) {
+                    const auto saved = dingosdk::profile_runtime::local_preference("HideGameUI");
+                    if (saved) {
+                        const bool desired = *saved;
+                        if (model.game_ui_hidden != desired) dingosdk::console::request_debug(overlay::DebugAction::set_game_ui_hidden, desired);
+                    }
+                }
+        } else if (last_in_menu && !in_menu) {
+            // Menu just closed: reapply saved preference.
+            const auto saved = dingosdk::profile_runtime::local_preference("HideGameUI");
+            if (saved) {
+                const bool desired = *saved;
+                if (model.game_ui_hidden != desired) dingosdk::console::request_debug(overlay::DebugAction::set_game_ui_hidden, desired);
+            }
+            last_in_menu = in_menu;
+        } else {
+            last_in_menu = in_menu;
+        }
+    } catch (...) { last_in_menu_known = true; }
     try {
         const auto camera = flight_camera ? *flight_camera : source_camera_snapshot(trial, client);
         const bool owned_view = camera.mode == 1 && camera.active == camera.identity.camera;

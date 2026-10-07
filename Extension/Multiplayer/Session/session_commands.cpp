@@ -523,7 +523,6 @@ std::string edit_world_layer_sync(Session &s, std::string_view argument) {
 // Sends one setting change to the dedicated server this guest is an admin of.
 // The server answers in chat.
 std::string send_admin(Session &s, std::string text) {
-    auto *host = find_peer(s, s.host_id);
     auto request = packet(s, PacketKind::admin, now_us());
     request.text = std::move(text);
     if (request.text.size() > max_admin_text || !valid_admin_text(request.text)) return "That request is too long.";
