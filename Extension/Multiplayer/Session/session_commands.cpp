@@ -524,8 +524,6 @@ std::string edit_world_layer_sync(Session &s, std::string_view argument) {
 // The server answers in chat.
 std::string send_admin(Session &s, std::string text) {
     auto *host = find_peer(s, s.host_id);
-    if (!host || !host->handshaken) return "Not connected to the server yet.";
-    if (!s.server_admin) return "You are not an admin on this server.";
     auto request = packet(s, PacketKind::admin, now_us());
     request.text = std::move(text);
     if (request.text.size() > max_admin_text || !valid_admin_text(request.text)) return "That request is too long.";
@@ -580,11 +578,11 @@ std::string command(std::string_view action, std::string_view argument, std::str
         // A dedicated server's admin changes the server's settings instead of
         // their own: the same menu actions, sent to the server. "server" sends
         // any server console command.
-        if (dedicated_host(s) && (action == "server" || (s.server_admin &&
+        if (action == "server" || 
             (action == "distances" || action == "object-placement" || action == "voice-allow" || action == "voice-range" ||
              action == "clear-objects" || action == "kick" || action == "ban" || action == "unban" ||
              action == "world-layer-sync" || action == "noclip-allow" || action == "nobail-allow" ||
-             action == "tpall" || action == "tphere" || action == "boosts-allow" || action == "tuning-enforce")))) {
+             action == "tpall" || action == "tphere" || action == "boosts-allow" || action == "tuning-enforce")) {
             const auto text = action == "server" ? std::string(argument) : std::string(action) + " " + std::string(argument);
             const auto result = send_admin(s, text);
             if (result != "Sent to the server.") add_chat(s, 0, "Server", result);
