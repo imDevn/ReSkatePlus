@@ -53,10 +53,10 @@ std::vector<ts::Package> fetch_listing(const std::string& community, const std::
 }
 
 fs::path icon_cache() {
-    std::array<wchar_t, 32768> local{};
-    const auto length = GetEnvironmentVariableW(L"LOCALAPPDATA", local.data(), static_cast<DWORD>(local.size()));
-    if (!length || length >= local.size()) return {};
-    return fs::path(local.data()) / L"ReSkate" / L"thunderstore" / L"icons";
+    wchar_t local[MAX_PATH]{};
+    const auto length = GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH);
+    if (!length || length >= MAX_PATH) return {};
+    return fs::path(local) / L"ReSkate" / L"thunderstore" / L"icons";
 }
 
 // Icon URLs end in Namespace-Name-1.2.3.png, so a file name keyed on that never goes stale.
@@ -74,7 +74,7 @@ std::vector<unsigned char> read_bytes(const fs::path& path) {
     std::vector<unsigned char> bytes;
     FILE* file{};
     if (_wfopen_s(&file, path.c_str(), L"rb") || !file) return bytes;
-    std::array<unsigned char, 65536> buffer{};
+    std::array<unsigned char, 8192> buffer{};
     for (std::size_t read; (read = std::fread(buffer.data(), 1, buffer.size(), file)) > 0;)
         bytes.insert(bytes.end(), buffer.begin(), buffer.begin() + static_cast<std::ptrdiff_t>(read));
     std::fclose(file);

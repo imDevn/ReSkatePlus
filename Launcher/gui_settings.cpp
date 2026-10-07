@@ -155,12 +155,18 @@ void settings_window(Launcher& launcher, const Fonts& fonts, ImVec2 size, Ui& ui
         if (ImGui::Button("Verify game files")) { open = false; open_sign_in(launcher, ui, true); }
         ImGui::EndDisabled();
         ImGui::Spacing();
-        ImGui::Spacing();
+        //ImGui::Spacing();
         section_caption(fonts, "PLAY");
         setting_check("Offline mode", "Play without Steam as Unknown Player; multiplayer is hidden. "
                       "Used automatically whenever Steam isn't running.", settings.offline);
         setting_check("Loose files", "Export the game's scripts/ and config/ beside Skate.exe so you can edit them.",
                       settings.loose_files);
+        ImGui::Spacing();
+        section_caption(fonts, "MOD BROWSER");
+        setting_check("Show deprecated mods", "Show mods that authors have abandoned or no longer support.",
+            settings.deprecated_mods);
+        setting_check("Show NSFW mods", "Show mods that have been marked as not safe for work.",
+            settings.nsfw_mods);
         ImGui::Spacing();
         section_caption(fonts, "EXTRA GAME ARGUMENTS");
         std::array<char, 1024> arguments{};

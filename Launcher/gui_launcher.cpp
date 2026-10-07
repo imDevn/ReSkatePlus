@@ -43,6 +43,8 @@ Settings load_settings(const fs::path& path) {
         settings.width = std::clamp(json.value("width", settings.width), 320, 16384);
         settings.height = std::clamp(json.value("height", settings.height), 200, 16384);
         settings.loose_files = json.value("loose_files", settings.loose_files);
+        settings.deprecated_mods = json.value("deprecated_mods", settings.deprecated_mods);
+        settings.nsfw_mods = json.value("nsfw_mods", settings.nsfw_mods);
         settings.gpu_diagnostics = json.value("gpu_diagnostics", settings.gpu_diagnostics);
         settings.offline = json.value("offline", settings.offline);
         settings.menu_key = json.value("menu_key", settings.menu_key);
@@ -76,6 +78,8 @@ void save_settings(const fs::path& path, const Settings& settings) {
     json["width"] = settings.width;
     json["height"] = settings.height;
     json["loose_files"] = settings.loose_files;
+    json["deprecated_mods"] = settings.deprecated_mods;
+    json["nsfw_mods"] = settings.nsfw_mods;
     json["gpu_diagnostics"] = settings.gpu_diagnostics;
     json["offline"] = settings.offline;
     json["menu_key"] = settings.menu_key;

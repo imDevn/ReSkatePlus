@@ -61,10 +61,10 @@ bool load_scripts(const lua_startup::Context& context) {
 bool start_custom_script_loader(std::uintptr_t base, std::string& error) {
     error.clear();
     try {
-        std::array<wchar_t, 32768> path{};
-        const auto length = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
-        if (!length || length >= path.size()) { error = "Cannot locate the custom script directory"; return false; }
-        game_root = std::filesystem::canonical(std::filesystem::path(std::wstring(path.data(), length))).parent_path();
+        wchar_t path[MAX_PATH]{};
+        const auto length = GetModuleFileNameW(nullptr, path, MAX_PATH);
+        if (!length || length >= MAX_PATH) { error = "Cannot locate the custom script directory"; return false; }
+        game_root = std::filesystem::canonical(std::filesystem::path(std::wstring(path, length))).parent_path();
         if (!initfs::loose_files_session_enabled(game_root)) {
             custom_scripts::report("", "Custom scripts disabled for this session");
             return true;
