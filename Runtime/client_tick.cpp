@@ -786,19 +786,6 @@ void update_model(std::uintptr_t client, TickState& frame) {
         for (const auto& point : level.start_points) choice.start_points.push_back(point.name);
         choice.can_load = catalog.available && context_ready;
         choice.load_block_reason = "Waiting for this process's native local world context.";
-        try {
-            if (!level.asset.empty() && level.asset.find("Splash") != std::string::npos)
-                activity_line(dingosdk::ConsoleSource::level,
-                    std::string("Discovered level (asset contains 'Splash'): asset='") + level.asset +
-                    "' display='" + level.display_name + "' manifest_only=" + (level.manifest_only ? "true" : "false"),
-                    dingosdk::ConsoleSeverity::debug);
-            else if (!level.display_name.empty() && level.display_name.find("Splash") != std::string::npos)
-                dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Context::server,
-                    dingosdk::logging::Channel::level, "Discovered level (display contains 'Splash'): asset='{}' display='{}' manifest_only={}",
-                    level.asset, level.display_name, level.manifest_only);
-        } catch (...) {
-            // Swallow logging problems to avoid interfering with the client tick.
-        }
         model.levels.push_back(std::move(choice));
     }
     const bool local = (state == 13 || state == 21) && context_ready && catalog.available && !catalog.levels.empty();
