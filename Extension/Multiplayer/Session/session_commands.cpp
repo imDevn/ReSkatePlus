@@ -600,7 +600,7 @@ std::string command(std::string_view action, std::string_view argument, std::str
         (action == "distances" || action == "object-placement" || action == "object-limit" || action == "voice-allow" || action == "voice-range" ||
          action == "clear-objects" || action == "kick" || action == "ban" || action == "unban" ||
          action == "world-layer-sync" || action == "noclip-allow" || action == "nobail-allow" ||
-         action == "tpall" || action == "tphere" || action == "boosts-allow" || action == "tuning-enforce")) {
+         action == "tpall" || action == "tphere" || action == "boosts-allow" || action == "tuning-enforce"))) {
             const auto text = action == "server" ? std::string(argument) : std::string(action) + " " + std::string(argument);
             const auto result = send_admin(s, text);
             if (result != "Sent to the server.") add_chat(s, 0, "Server", result);
