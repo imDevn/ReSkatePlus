@@ -1,7 +1,6 @@
 #include "gui_internal.h"
 
-#include "mod_manager.h"
-
+#include "mod_manager.h"
 #include "problem.h"
 
 #include <cmath>
