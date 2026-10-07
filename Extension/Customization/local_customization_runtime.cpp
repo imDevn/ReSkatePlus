@@ -65,16 +65,11 @@ namespace {
 std::mutex reserved_hash_mutex;
 std::set<std::uint32_t> reserved_hashes;
 }
-bool reserved_cosmetic(std::string_view asset) {
-    const auto& catalogs = content_cache::catalogs();
-    if (!catalogs.available || asset.empty()) return false;
-    std::string folded(asset);
-    for (auto& letter : folded) if (letter >= 'A' && letter <= 'Z') letter = static_cast<char>(letter + ('a' - 'A'));
-    return catalogs.reserved(folded);
+bool reserved_cosmetic(std::string_view /*asset*/) {
+    return false;
 }
-bool reserved_cosmetic_hash(std::uint32_t hash) {
-    std::lock_guard lock(reserved_hash_mutex);
-    return hash && reserved_hashes.contains(hash);
+bool reserved_cosmetic_hash(std::uint32_t /*hash*/) {
+    return false;
 }
 bool refresh_cosmetic_catalog() {
     auto& s = local_runtime(); auto& c = cosmetic_runtime();
