@@ -202,8 +202,8 @@ add_library(dingosdk_custom_level_manifest STATIC
 target_link_libraries(dingosdk_custom_level_manifest PUBLIC dingosdk_json)
 target_link_libraries(dingosdk_runtime PRIVATE dingosdk_custom_level_manifest)
 
-set_target_properties(dingosdk_runtime PROPERTIES OUTPUT_NAME "ReSkate" PREFIX "")
-dingosdk_version_info(dingosdk_runtime "ReSkate mod runtime" "ReSkate.dll" VFT_DLL)
+set_target_properties(dingosdk_runtime PROPERTIES OUTPUT_NAME "ReSkate+" PREFIX "")
+dingosdk_version_info(dingosdk_runtime "ReSkate+ Mod Runtime" "ReSkatePlus.dll" VFT_DLL)
 target_include_directories(dingosdk_runtime SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/External/steam_networking")
 target_link_libraries(dingosdk_runtime PRIVATE dingosdk_lz4 dingosdk_zstd)
 
@@ -215,7 +215,7 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/menu_fonts.rc"
     "FONT_BRUSH RCDATA \"${dingosdk_menu_fonts}/PermanentMarker-Regular.ttf\"\n")
 target_sources(dingosdk_runtime PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated/menu_fonts.rc")
 
-# The startup window's picture (PNG or JPEG), built into ReSkate.dll when the
+# The startup window's picture (PNG or JPEG), built into ReSkatePlus.dll when the
 # repository has one. ReSkate.Splash.png/.jpg beside the DLL still takes
 # precedence at run time.
 set(dingosdk_startup_art "${PROJECT_SOURCE_DIR}/assets/startup_splash.png")
@@ -227,7 +227,7 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/assets")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/assets")
 endif()
 # Chat emotes (Better Chat's pack format; Extension/UI/Overlay/chat_emotes.h), built into
-# ReSkate.dll when the repository has assets/emotes/emotes.json and emotes.png.
+# ReSkatePlus.dll when the repository has assets/emotes/emotes.json and emotes.png.
 set(dingosdk_emotes "${PROJECT_SOURCE_DIR}/assets/emotes")
 if(EXISTS "${dingosdk_emotes}")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${dingosdk_emotes}")
