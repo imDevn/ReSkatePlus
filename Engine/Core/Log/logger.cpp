@@ -62,7 +62,7 @@ public:
             nullptr, OPEN_EXISTING, 0, nullptr);
         if (handle_ == INVALID_HANDLE_VALUE && AllocConsole()) {
             owned_ = true;
-            SetConsoleTitleW(L"ReSkate Console");
+            SetConsoleTitleW(L"ReSkate+ Console");
             // Text selection in a classic console must not pause game hooks.
             const auto input = GetStdHandle(STD_INPUT_HANDLE);
             DWORD mode{};

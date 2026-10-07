@@ -39,7 +39,7 @@ StartResult start(const std::filesystem::path& log_directory) noexcept {
         const auto process_size = GetModuleFileNameW(nullptr, process_path.data(), static_cast<DWORD>(process_path.size()));
         if (!module_size || module_size >= module_path.size() || !process_size || process_size >= process_path.size())
             return StartResult::failed;
-        const auto executable = std::filesystem::path(module_path.data()).parent_path() / L"ReSkateLauncher.exe";
+        const auto executable = std::filesystem::path(module_path.data()).parent_path() / L"ReSkatePlusLauncher.exe";
         SECURITY_ATTRIBUTES security{sizeof(security), nullptr, TRUE};
         std::array<Handle, handle_count> owned;
         owned[mapping].value = CreateFileMappingW(INVALID_HANDLE_VALUE, &security, PAGE_READWRITE, 0, sizeof(SharedReport), nullptr);

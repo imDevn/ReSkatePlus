@@ -140,7 +140,7 @@ std::string rva_string(const MappedFile& file, const ParsedPe& pe, std::uint32_t
 
 // Opens a file to read all of it. A file that was written a moment ago (a download) is often
 // held by the antivirus scanning it, so a sharing violation is waited out for a few seconds.
-// A file that still cannot be opened is named along with the reason: with ReSkate.dll that is
+// A file that still cannot be opened is named along with the reason: with ReSkatePlus.dll that is
 // nearly always an antivirus blocking it, and "cannot open file" told the player nothing.
 Handle open_to_read(const fs::path& path) {
     DWORD error{};

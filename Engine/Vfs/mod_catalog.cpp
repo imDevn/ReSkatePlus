@@ -34,7 +34,7 @@ std::string join(const std::vector<std::string>& parts, const char* separator) {
     return text;
 }
 
-// Identifies this ReSkate.dll build, so a new one retries mods an older one left out.
+// Identifies this ReSkatePlus.dll build, so a new one retries mods an older one left out.
 // The game build a layout.toc belongs to: its pipelineCodeChangelists. A mod's
 // layout is a copy of the game's from the build it was made for, so a mod made
 // for an earlier build carries that build's number. Empty when unreadable.
@@ -64,8 +64,8 @@ std::string layout_changelist(const fs::path& path) noexcept {
 }
 
 std::string sdk_identity() {
-    // ReSkate.dll beside the running executable, not whichever module holds
-    // this code: Skate.exe and ReSkateLauncher.exe both sit beside it, and
+    // ReSkatePlus.dll beside the running executable, not whichever module holds
+    // this code: Skate.exe and ReSkatePlusLauncher.exe both sit beside it, and
     // both merge, so both have to arrive at the same answer or each would
     // call the other's exclusions stale and merge everything again. Not the
     // data root, which -dataPath can move away from the dll. An empty answer
@@ -74,7 +74,7 @@ std::string sdk_identity() {
     const auto length = GetModuleFileNameW(nullptr, host.data(), static_cast<DWORD>(host.size()));
     if (!length || length >= host.size()) return {};
     std::error_code error;
-    const auto file = fs::path(std::wstring(host.data(), length)).parent_path() / L"ReSkate.dll";
+    const auto file = fs::path(std::wstring(host.data(), length)).parent_path() / L"ReSkatePlus.dll";
     const auto size = fs::file_size(file, error);
     if (error) return {};
     const auto written = fs::last_write_time(file, error).time_since_epoch().count();

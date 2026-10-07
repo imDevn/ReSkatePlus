@@ -48,9 +48,9 @@ bool apply_headless_updates(const app::Session& session, const update::Config& c
     if (!config.runtime.url.empty() && !update::file_matches(session.paths.dll, config.runtime)) {
         try {
             update::replace_file(session.paths.dll, config.runtime);
-            dingosdk::logging::log(Level::info, Channel::launcher, "ReSkate.dll updated to {}.", config.runtime.version);
+            dingosdk::logging::log(Level::info, Channel::launcher, "ReSkatePlus.dll updated to {}.", config.runtime.version);
         } catch (const std::exception& exception) {
-            dingosdk::logging::log(Level::warning, Channel::launcher, "ReSkate.dll update failed: {}", exception.what());
+            dingosdk::logging::log(Level::warning, Channel::launcher, "ReSkatePlus.dll update failed: {}", exception.what());
         }
     }
     if (relaunched || config.launcher.url.empty() || update::file_matches(session.self, config.launcher)) return false;
@@ -79,7 +79,7 @@ void run_headless(const app::Session& session, std::vector<std::wstring> argumen
     }
     if (!app::game_files_supported(session.paths))
         throw std::runtime_error("Skate.exe is missing or is not the supported build. "
-            "Open ReSkateLauncher.exe without --no-gui to download it from Steam.");
+            "Open ReSkatePlusLauncher.exe without --no-gui to download it from Steam.");
     app::start_game(session, options);
 }
 

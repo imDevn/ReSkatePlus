@@ -26,16 +26,16 @@ inline constexpr std::string_view attach_advice =
 
 inline Problem explain(std::string_view raw) {
     // Most specific first: the later rules match whole families of failures.
-    if (mentions(raw, "must be beside ReSkateLauncher.exe"))
+    if (mentions(raw, "must be beside ReSkatePlusLauncher.exe"))
         return {"ReSkate is not in your skate. folder",
-                "Put ReSkateLauncher.exe and ReSkate.dll beside Skate.exe, in the folder Steam opens with "
+                "Put ReSkatePlusLauncher.exe and ReSkatePlus.dll beside Skate.exe, in the folder Steam opens with "
                 "skate. > Manage > Browse local files."};
-    if (mentions(raw, "ReSkate.dll is missing"))
-        return {"ReSkate.dll is missing",
-                "Extract ReSkateLauncher.exe and ReSkate.dll from the same release zip into this folder, "
+    if (mentions(raw, "ReSkatePlus.dll is missing"))
+        return {"ReSkatePlus.dll is missing",
+                "Extract ReSkatePlusLauncher.exe and ReSkatePlus.dll from the same release zip into this folder, "
                 "then press RETRY."};
-    if (mentions(raw, "ReSkate.dll is not an x64") || mentions(raw, "DingoSDKDebugInitialize is outside"))
-        return {"ReSkate.dll is damaged",
+    if (mentions(raw, "ReSkatePlus.dll is not an x64") || mentions(raw, "DingoSDKDebugInitialize is outside"))
+        return {"ReSkatePlus.dll is damaged",
                 "Download the release zip again and extract both files over this folder. Your anti-virus may "
                 "also have quarantined part of it."};
     if (mentions(raw, "Skate.exe is missing"))
@@ -75,11 +75,11 @@ inline Problem explain(std::string_view raw) {
         return {"Skate.exe is set to always run as administrator",
                 "ReSkate has to start Skate itself, and Windows does not let it start a program marked to "
                 "need administrator. Right-click Skate.exe, pick Properties, then Compatibility, and untick "
-                "\"Run this program as an administrator\". Starting ReSkateLauncher.exe as "
+                "\"Run this program as an administrator\". Starting ReSkatePlusLauncher.exe as "
                 "administrator works too."};
     if (mentions(raw, "LoadLibraryW is hooked")) {
         std::string advice = "Security software or an overlay is modifying Skate while it starts, and ReSkate will "
-                             "not load itself through that. Allow ReSkateLauncher.exe and Skate.exe in it, or close "
+                             "not load itself through that. Allow ReSkatePlusLauncher.exe and Skate.exe in it, or close "
                              "it, then press RETRY.";
         // The launcher named what it found in Skate; that is the useful half.
         if (const auto found = raw.find("Loaded into Skate"); found != std::string_view::npos)

@@ -104,8 +104,8 @@ std::string sha256_file(const std::filesystem::path& path);
 void validate_steam_api_file(const std::filesystem::path& path);
 
 // -offline: the launcher sets RESKATE_OFFLINE=1 so the game runs without Steam,
-// as "Unknown Player", with multiplayer hidden. Read once per process.
-inline constexpr const char* offline_player_name = "Unknown Player";
+// as "Full-Circle Employee", with multiplayer hidden. Read once per process.
+inline constexpr const char* offline_player_name = "Full-Circle Employee";
 bool offline_mode() noexcept;
 // The SteamID offline mode reports: RESKATE_OFFLINE_STEAM_ID, the account
 // Steam was last signed in to, so the game keeps the same settings save.

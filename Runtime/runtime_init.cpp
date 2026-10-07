@@ -92,7 +92,7 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
         } else {
             dingosdk::logging::write(dingosdk::logging::Level::warning, dingosdk::logging::Channel::assets,
                 "Game content cache is not installed: item names, challenges and default entitlements are unavailable. "
-                "Start ReSkate from ReSkateLauncher to install it.");
+                "Start ReSkate from ReSkatePlusLauncher to install it.");
         }
         // World layers come from the installed level data. The launcher builds
         // the per-build cache; without it this scans the level TOCs once here.

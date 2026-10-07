@@ -7,7 +7,7 @@
 // game shows nothing until its swapchain exists, which is also when the overlay
 // can first draw. It closes by itself as soon as the game's window appears.
 //
-// The picture is ReSkate.Splash.png beside ReSkate.dll when present, otherwise
+// The picture is ReSkate.Splash.png beside ReSkatePlus.dll when present, otherwise
 // the one built into the DLL from assets/startup_splash.png, otherwise a plain
 // ReSkate card. Everything here returns at once: the window has a thread of its
 // own.

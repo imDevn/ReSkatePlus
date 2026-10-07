@@ -345,7 +345,7 @@ int run(const launcher_app::Session& session, const std::vector<std::wstring>& a
     window_class.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(1));
     window_class.hIconSm = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(1), IMAGE_ICON,
         GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR));
-    window_class.lpszClassName = L"ReSkateLauncher";
+    window_class.lpszClassName = L"ReSkatePlusLauncher";
     RegisterClassExW(&window_class);
 
     const int width = static_cast<int>(S(design_width));

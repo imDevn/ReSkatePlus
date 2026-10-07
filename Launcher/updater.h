@@ -41,7 +41,7 @@ struct Config {
     std::string server_exe_sha256;
 };
 
-// Release builds replace ReSkateLauncher.exe and ReSkate.dll; local builds only report.
+// Release builds replace ReSkatePlusLauncher.exe and ReSkatePlus.dll; local builds only report.
 bool binary_updates_enabled() noexcept;
 Config parse_config(std::string_view text);
 // Returns nothing when offline or the config is invalid; the reason is logged.
@@ -60,12 +60,12 @@ bool file_matches(const std::filesystem::path& path, const RemoteFile& file);
 // Downloads beside `target` as .new and verifies it. Returns the verified path.
 std::filesystem::path download_verified(const std::filesystem::path& target, const RemoteFile& file,
                                         const Progress& progress = {});
-// Replaces an unloaded file (ReSkate.dll) in place.
+// Replaces an unloaded file (ReSkatePlus.dll) in place.
 void replace_file(const std::filesystem::path& target, const RemoteFile& file, const Progress& progress = {});
 // Renames the running launcher to .old and moves the verified update into place.
 void replace_running_launcher(const std::filesystem::path& self, const RemoteFile& file,
                               const Progress& progress = {});
-// Removes ReSkateLauncher.exe.old left by a previous self-update.
+// Removes ReSkatePlusLauncher.exe.old left by a previous self-update.
 void remove_previous_launcher(const std::filesystem::path& self) noexcept;
 
 // Unpacks every file of a verified ZIP into `directory`, replacing what is

@@ -15,7 +15,7 @@ struct Session {
     launcher::SiblingPaths paths;
 };
 
-// Resolves ReSkateLauncher.exe and its sibling game files and opens ReSkate.log.
+// Resolves ReSkatePlusLauncher.exe and its sibling game files and opens ReSkate.log.
 Session open_session(const std::string& log_level);
 // Skate.exe and steam_api64.dll are present and exactly the supported build.
 bool game_files_supported(const launcher::SiblingPaths& paths);

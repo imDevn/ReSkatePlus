@@ -65,7 +65,7 @@ struct Mod {
 inline constexpr char exclusions_file[] = ".reskate-excluded.json";
 struct Exclusion {
     std::string fingerprint;           // mod_fingerprint() when it was left out
-    std::string sdk;                   // the ReSkate.dll that left it out; a new one retries
+    std::string sdk;                   // the ReSkatePlus.dll that left it out; a new one retries
     std::vector<std::string> problems; // why, most important first
 };
 // Names, sizes and write times of every file in the mod folder.

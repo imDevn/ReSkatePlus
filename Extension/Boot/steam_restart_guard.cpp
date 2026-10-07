@@ -78,7 +78,7 @@ bool start_steam_restart_guard(std::string& error) noexcept {
         if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                 GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                 reinterpret_cast<LPCWSTR>(&module_anchor), &self))
-            throw std::runtime_error("Cannot locate ReSkate.dll");
+            throw std::runtime_error("Cannot locate ReSkatePlus.dll");
         const auto expected = module_path(self).parent_path() / L"steam_api64.dll";
         launcher::validate_steam_api_file(expected);
 
@@ -86,7 +86,7 @@ bool start_steam_restart_guard(std::string& error) noexcept {
         if (steam) {
             std::error_code equivalent_error;
             if (!fs::equivalent(expected, module_path(steam), equivalent_error) || equivalent_error)
-                throw std::runtime_error("Loaded steam_api64.dll is not ReSkate.dll's verified sibling");
+                throw std::runtime_error("Loaded steam_api64.dll is not ReSkatePlus.dll's verified sibling");
         } else {
             steam = LoadLibraryExW(expected.c_str(), nullptr,
                 LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);

@@ -240,7 +240,7 @@ std::wstring mod_data_arguments(const fs::path& game_directory,
 
 SiblingPaths sibling_paths(const fs::path& launcher) {
     const auto directory = launcher.parent_path();
-    return {directory, directory / L"Skate.exe", directory / L"ReSkate.dll",
+    return {directory, directory / L"Skate.exe", directory / L"ReSkatePlus.dll",
             directory / L"steam_api64.dll", directory / L"logs"};
 }
 

@@ -259,7 +259,7 @@ void category_tabs(SkateMenu& menu, int& selected, std::initializer_list<const c
 }
 
 namespace {
-// The menu fonts are built into ReSkate.dll (External/fonts, shared with the
+// The menu fonts are built into ReSkatePlus.dll (External/fonts, shared with the
 // launcher); Windows fonts are the fallback.
 ImFont* embedded_font(const wchar_t* name, float size, const ImWchar* ranges) {
     HMODULE module{};

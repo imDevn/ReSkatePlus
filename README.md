@@ -217,8 +217,8 @@ The source tree loosely follows Frostbite's own layout.
 | `Engine/Game/` | the game's native ABI and data models |
 | `Engine/Game/Build/<build>/` | every address, fingerprint and patch tied to one `Skate.exe` build, as `addr::<area>::<name>` |
 | `Extension/` | ReSkate's features, the in-game UI and diagnostics |
-| `Runtime/` | `ReSkate.dll`: entry point, startup and exports |
-| `Launcher/` | `ReSkateLauncher.exe` |
+| `Runtime/` | `ReSkatePlus.dll`: entry point, startup and exports |
+| `Launcher/` | `ReSkatePlusLauncher.exe` |
 | `Server/` | `ReSkateServer.exe` |
 | `EmotePacker/` | `ReSkateEmotePacker.exe` |
 | `External/` | third-party libraries, pinned and hashed (see [External/README.md](External/README.md)) |
