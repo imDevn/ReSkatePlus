@@ -1,9 +1,8 @@
-# ReSkate
-Download the trainer here https://github.com/andrewnakas/reskate-trainer/releases
-play it offline, host your own lobbies and dedicated servers, and mod it.
+# ReSkate+
+Play it offline, host your own lobbies and dedicated servers, and mod it.
 the launcher, the runtime that loads into the game, and the dedicated server.
 
-> ReSkate is a fan project. It is not affiliated with or endorsed by Electronic Arts or Full Circle.
+> ReSkate+ is a fan project. It is not affiliated with or endorsed by Electronic Arts or Full Circle.
 > You need your own copy of skate. on Steam.
 
 ## Features
@@ -34,28 +33,28 @@ the launcher, the runtime that loads into the game, and the dedicated server.
 - **Launcher.**
   - Checks that you have the supported game build, and can download exactly that build with your Steam
     account.
-  - Keeps ReSkate itself up to date.
+  - Keeps ReSkate+ itself up to date.
 
 ## Getting started
 
-1. Download the latest `ReSkate-<version>.zip` from
-   [Releases](https://github.com/Dingo-Shenanigans/ReSkate/releases).
-2. Extract `ReSkateLauncher.exe` and `ReSkate.dll` into either folder:
+1. Download the latest `ReSkatePlus-<version>.zip` from
+   [Releases](https://github.com/imDevn/ReSkatePlus).
+2. Extract `ReSkatePlusLauncher.exe` and `ReSkatePlus.dll` into either folder:
    - **your skate. folder**, beside `Skate.exe` (Steam → skate. → Manage → Browse local files); or
    - **an empty folder**, where the launcher installs the game for you (about 14 GB).
-3. Run `ReSkateLauncher.exe`.
-   - It checks for ReSkate updates, then checks the game files against the supported build.
+3. Run `ReSkatePlusLauncher.exe`.
+   - It checks for ReSkate+ updates, then checks the game files against the supported build.
    - If the game is missing, or Steam has updated it past the supported build, sign in when asked. You
      can scan a QR code with the Steam app, or use your username and password with Steam Guard. It then
      downloads only the files it needs.
 4. Press **PLAY**.
 
-ReSkate supports one game build at a time (Steam build `25414733`).
+ReSkate+ supports one game build at a time (Steam build `25414733`).
 ### Controls
 
 | Key | Opens |
 |---|---|
-| **Insert** | the ReSkate menu |
+| **Insert** | the ReSkate+ menu |
 | **~** (grave/tilde) | the command console (`help` lists the commands) |
 | **T** | chat, in multiplayer |
 
@@ -66,16 +65,16 @@ The menu and console keys can be changed in the launcher's Settings.
 | What | Where |
 |---|---|
 | Mods | `Mods\<mod name>\` beside `Skate.exe`, ordered by `Mods\mods.json` |
-| Logs | `logs\ReSkate.log` beside `Skate.exe` |
-| Profile (skater, progress, parks) | `%LOCALAPPDATA%\ReSkate\profiles\offline\` |
-| The game's own settings and saves | `%LOCALAPPDATA%\ReSkate\Game\` (kept apart from the normal game) |
-| Launcher settings | `ReSkateLauncher.settings.json` beside the launcher |
+| Logs | `logs\ReSkatePlus.log` beside `Skate.exe` |
+| Profile (skater, progress, parks) | `%LOCALAPPDATA%\ReSkatePlus\profiles\offline\` |
+| The game's own settings and saves | `%LOCALAPPDATA%\ReSkatePlus\Game\` (kept apart from the normal game) |
+| Launcher settings | `ReSkatePlusLauncher.settings.json` beside the launcher |
 
 ## Mods
 
 - Install mods from the launcher's **MODS** page: browse Thunderstore, or drag a `.zip` or folder onto the
   window.
-- In game, the **MODS** tab of the ReSkate menu (**Insert**) turns mods on and off and applies the changes.
+- In game, the **MODS** tab of the ReSkatePlus menu (**Insert**) turns mods on and off and applies the changes.
 - Mods are checked against the game build they were made for. Outdated mods, or mods that can't be merged
   cleanly, are left out with a message naming them, and the rest still load.
 - A mod that adds songs can give them their own playlist in the game's music screen with a
@@ -151,8 +150,8 @@ The files are written to `build/vs2022-x64/Release/`:
 
 | File | What it is |
 |---|---|
-| `ReSkateLauncher.exe` | the launcher (also hosts crash reporting) |
-| `ReSkate.dll` | the runtime the launcher loads into the game |
+| `ReSkatePlusLauncher.exe` | the launcher (also hosts crash reporting) |
+| `ReSkatePlus.dll` | the runtime the launcher loads into the game |
 | `ReSkateServer.exe` | the dedicated server |
 | `ReSkateEmotePacker.exe` | builds the chat emote pack in `assets/emotes` |
 
@@ -161,7 +160,7 @@ To work in Visual Studio, open `build/vs2022-x64/DingoSDK.sln` after configuring
 
 ### Running your build
 
-Close the game. Copy `ReSkateLauncher.exe` and `ReSkate.dll` beside `Skate.exe`, then run the launcher.
+Close the game. Copy `ReSkatePlusLauncher.exe` and `ReSkatePlus.dll` beside `Skate.exe`, then run the launcher.
 
 Local builds never replace themselves. They only report that an update exists, so a release can't
 overwrite the DLL you are testing.
@@ -186,8 +185,8 @@ Useful launcher flags:
 | Option | Default | Effect |
 |---|---|---|
 | `DINGOSDK_VERSION` | `0.0.0` | version stamped into the binaries |
-| `DINGOSDK_LAUNCHER_AUTO_UPDATE` | `OFF` | let the launcher replace itself and `ReSkate.dll`, and the server replace itself (release builds) |
-| `DINGOSDK_RELEASE_REPO` | `Dingo-Shenanigans/ReSkate` | public GitHub repository whose latest release carries `launcher.json` and the files it pins |
+| `DINGOSDK_LAUNCHER_AUTO_UPDATE` | `OFF` | let the launcher replace itself and `ReSkatePlus.dll`, and the server replace itself (release builds) |
+| `DINGOSDK_RELEASE_REPO` | `imDevn/ReSkatePlus` | public GitHub repository whose latest release carries `launcher.json` and the files it pins |
 | `DINGOSDK_BACKTRACE_URL` | the project's endpoint | Backtrace minidump submission URL; empty turns crash uploads off |
 | `DINGOSDK_TEST_GAME_ROOT` | empty | a Skate folder, for the tests that read real game data |
 
@@ -243,27 +242,27 @@ login name.
 To turn it off, untick **Send crash reports** in the launcher's Settings (ADVANCED), or set the
 environment variable `RESKATE_CRASH_REPORTING=0`.
 
-ReSkate also keeps the game off EA's online services: the game's own crash reports, telemetry and
+ReSkatePlus also keeps the game off EA's online services: the game's own crash reports, telemetry and
 remote configuration requests are turned off and blocked. Fast-travel artwork still comes from EA's
 image CDN (`dingo-dev-assets.akamaized.net`), which only downloads images.
 [contrib/ea-watch.ps1](contrib/ea-watch.ps1) shows what the game connects to, if you want to check.
 
 ## Third-party code
 
-ReSkate uses Dear ImGui, Microsoft Detours, RapidJSON, spdlog, SQLite, LZ4, Zstandard, miniz, bcdec and
+ReSkatePlus uses Dear ImGui, Microsoft Detours, RapidJSON, spdlog, SQLite, LZ4, Zstandard, miniz, bcdec and
 Valve's networking headers, and the Montserrat and Permanent Marker fonts. Versions, licenses and local
 patches are in [External/README.md](External/README.md). Every release ships their license files in
 `licenses/`.
 
 ## License
 
-Copyright © 2026 the ReSkate contributors.
+Copyright © 2026 the ReSkatePlus contributors.
 
-ReSkate's source code is free software: you can redistribute it and modify it under the terms of the
-[GNU General Public License, version 3](LICENSE). If you share a modified ReSkate, share its source
+ReSkatePlus's source code is free software: you can redistribute it and modify it under the terms of the
+[GNU General Public License, version 3](LICENSE). If you share a modified ReSkatePlus, share its source
 code under the same license.
 
-The license covers ReSkate's own code. It does not cover:
+The license covers ReSkatePlus's own code. It does not cover:
 
 - **Third-party libraries and fonts** in `External/`, which keep their own licenses (see
   [External/README.md](External/README.md)).
@@ -277,3 +276,6 @@ The license covers ReSkate's own code. It does not cover:
 Parts of ReSkate, including code, reverse-engineering notes and documentation, were written with the
 help of AI coding assistants. The maintainers direct and test that work, but AI-written code can contain
 mistakes like any other. If something looks wrong, please open an issue.
+
+ReSkatePlus is not built with AI as part of its development. I can't speak on other incorporated 
+repositories, but everything is checked before being merged into this project.'
