@@ -1,6 +1,7 @@
 #include "gui_internal.h"
 
-#include "mod_manager.h"
+#include "mod_manager.h"
+
 #include "problem.h"
 
 #include <cmath>
@@ -302,7 +303,7 @@ void status_tile(const Fonts& fonts, const State& state, ImVec2 position, float 
         ImGui::SameLine(0, S(8));
         if (ImGui::Button("Copy details", ImVec2(S(116), S(30)))) {
             // The raw message, not the friendly one: this is for the Discord.
-            std::string report = "ReSkate launcher\n" + state.status + "\n";
+            std::string report = "ReSkate+ Launcher\n" + state.status + "\n";
             for (const auto& fact : facts) report += fact.text + "\n";
             ImGui::SetClipboardText(report.c_str());
         }
@@ -398,12 +399,12 @@ void frame(Launcher& launcher, const Fonts& fonts, HWND window, Ui& ui, ModsPane
     auto* draw = ImGui::GetWindowDrawList();
     if (g_background.id) draw_photo(draw, size, time);
     else draw_background(draw, size, time);
-    std::string version = "Development build";
+    std::string version = "Development Build";
     if (update::binary_updates_enabled() && state.config && !state.config->launcher.version.empty())
         version = "Launcher " + state.config->launcher.version;
     const bool greet = !launcher.settings().offline && !ui.steam_name.empty();
-    draw_plate(draw, fonts, ImVec2(S(50), S(40)), greet ? "Welcome, " + ui.steam_name : std::string("ReSkate"), version);
-    page_title(draw, fonts, ImVec2(S(52), S(88)), "RESKATE");
+    draw_plate(draw, fonts, ImVec2(S(50), S(40)), greet ? "Welcome, " + ui.steam_name : std::string("ReSkate+"), version);
+    page_title(draw, fonts, ImVec2(S(52), S(88)), "RESKATE+");
 
     window_buttons(draw, window, size);
 
@@ -422,7 +423,7 @@ void frame(Launcher& launcher, const Fonts& fonts, HWND window, Ui& ui, ModsPane
     bool secondary = false;
     switch (state.phase) {
     case Phase::checking: label = "CHECKING"; enabled = false; break;
-    case Phase::update_available: label = "UPDATE"; detail = "New ReSkate files are ready"; break;
+    case Phase::update_available: label = "UPDATE"; detail = "New ReSkate+ files are ready"; break;
     case Phase::updating: label = "UPDATING"; enabled = false; break;
     case Phase::game_missing: label = "INSTALL"; detail = "Download skate. from Steam"; break;
     case Phase::game_outdated: label = "DOWNLOAD"; detail = "Get the supported build from Steam"; break;
@@ -436,9 +437,9 @@ void frame(Launcher& launcher, const Fonts& fonts, HWND window, Ui& ui, ModsPane
         label = "PLAY";
         // Release builds install the configured runtime before PLAY appears.
         detail = !state.config ? std::string("Offline")
-               : !update::binary_updates_enabled() ? std::string("ReSkate development build")
-               : state.config->runtime.version.empty() ? std::string("ReSkate")
-               : "ReSkate " + state.config->runtime.version;
+               : !update::binary_updates_enabled() ? std::string("ReSkate+ Development Build")
+               : state.config->runtime.version.empty() ? std::string("ReSkate+")
+               : "ReSkate+ " + state.config->runtime.version;
         break;
     case Phase::launching: label = "LAUNCHING"; enabled = false; break;
     case Phase::failed: label = "RETRY"; break;

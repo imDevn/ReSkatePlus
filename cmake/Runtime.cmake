@@ -209,7 +209,7 @@ add_library(dingosdk_custom_level_manifest STATIC
 target_link_libraries(dingosdk_custom_level_manifest PUBLIC dingosdk_json)
 target_link_libraries(dingosdk_runtime PRIVATE dingosdk_custom_level_manifest)
 
-set_target_properties(dingosdk_runtime PROPERTIES OUTPUT_NAME "ReSkate+" PREFIX "")
+set_target_properties(dingosdk_runtime PROPERTIES OUTPUT_NAME "ReSkatePlus" PREFIX "")
 dingosdk_version_info(dingosdk_runtime "ReSkate+ Mod Runtime" "ReSkatePlus.dll" VFT_DLL)
 target_include_directories(dingosdk_runtime SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/External/steam_networking")
 target_link_libraries(dingosdk_runtime PRIVATE dingosdk_lz4 dingosdk_zstd)

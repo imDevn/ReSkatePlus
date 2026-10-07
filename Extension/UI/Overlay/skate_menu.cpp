@@ -362,9 +362,9 @@ void draw_skate_menu(SkateMenu& menu, const Model& model, const CallbacksV3& cal
         {
             const int start = draw->VtxBuffer.Size;
             const ImVec2 at(origin.x + px(16), origin.y + px(14));
-            draw->AddText(menu.title, px(40), ImVec2(at.x + px(2), at.y + px(3)), IM_COL32(0, 0, 0, 160), "RESKATE");
-            draw->AddText(menu.title, px(40), at, paper, "RESKATE");
-            const auto extent = menu.title->CalcTextSizeA(px(40), FLT_MAX, 0, "RESKATE");
+            draw->AddText(menu.title, px(40), ImVec2(at.x + px(2), at.y + px(3)), IM_COL32(0, 0, 0, 160), "RESKATE+");
+            draw->AddText(menu.title, px(40), at, paper, "RESKATE+");
+            const auto extent = menu.title->CalcTextSizeA(px(40), FLT_MAX, 0, "RESKATE+");
             skate_theme::rotate_since(draw, start, -4.0f, ImVec2(at.x + extent.x * .5f, at.y + extent.y * .5f));
         }
         draw->AddText(menu.body, px(12), ImVec2(origin.x + px(18), origin.y + px(66)), muted, "YOUR SESSION. YOUR RULES.");

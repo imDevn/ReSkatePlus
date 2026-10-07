@@ -306,7 +306,7 @@ void Launcher::run_check() {
     }
     const bool newer = config && (launcher_outdated(*config) || runtime_outdated(*config));
     if (newer && update::binary_updates_enabled() && binaries_ && settings_.updates) {
-        set(Phase::update_available, "A ReSkate update is ready",
+        set(Phase::update_available, "A ReSkate+ update is ready",
             std::format("Version {} will be downloaded and installed.",
                 config->runtime.version.empty() ? config->launcher.version : config->runtime.version));
         return;
@@ -325,27 +325,27 @@ void Launcher::run_check() {
             return;
         }
         if (installed) set(Phase::game_outdated, "Steam updated Skate",
-            "ReSkate needs the build below. Only the files that differ are downloaded.");
+            "ReSkate+ needs the build below. Only the files that differ are downloaded.");
         else set(Phase::game_missing, "Skate is not installed here",
             "Download the build below from Steam, about 14 GB, with an account that owns skate.");
         return;
     }
     std::error_code error;
     if (!fs::is_regular_file(session_.paths.dll, error)) {
-        fail("ReSkate.dll is missing from the game folder.");
+        fail("ReSkatePlus.dll is missing from the game folder.");
         return;
     }
     set(Phase::ready, "Ready to skate", !config ? "Offline: update check skipped."
-        : !settings_.updates ? (newer ? "ReSkate updates are off; keeping your ReSkate files." : "ReSkate updates are off.")
+        : !settings_.updates ? (newer ? "ReSkate updates are off; keeping your ReSkate+ files." : "ReSkate+ updates are off.")
         : "Up to date.");
 }
 
 void Launcher::run_updates() {
     const auto config = this->config();
     if (!config) return run_check();
-    set(Phase::updating, "Updating ReSkate");
+    set(Phase::updating, "Updating ReSkate+");
     if (runtime_outdated(*config))
-        update::replace_file(session_.paths.dll, config->runtime, progress_for("ReSkate.dll"));
+        update::replace_file(session_.paths.dll, config->runtime, progress_for("ReSkatePlus.dll"));
     if (launcher_outdated(*config)) {
         update::replace_running_launcher(session_.self, config->launcher, progress_for("Launcher"));
         logging::flush();

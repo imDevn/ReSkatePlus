@@ -52,7 +52,7 @@ constexpr wchar_t art_resource[] = L"STARTUP_SPLASH";
 
 struct Shared {
     std::mutex mutex;
-    std::wstring heading{L"Starting ReSkate\x2026"}, detail;
+    std::wstring heading{L"Starting ReSkate+\x2026"}, detail;
     float progress{-1.0f};
     bool opened{}, closing{};
     std::atomic<bool> shown{};
@@ -287,7 +287,7 @@ struct Window {
         SelectObject(dc, title);
         SetBkMode(dc, TRANSPARENT);
         SetTextColor(dc, paper);
-        constexpr wchar_t wordmark[] = L"RESKATE";
+        constexpr wchar_t wordmark[] = L"RESKATE+";
         SIZE extent{};
         GetTextExtentPoint32W(dc, wordmark, static_cast<int>(std::size(wordmark) - 1), &extent);
         const int left = (width - extent.cx) / 2, top = height * 2 / 5 - extent.cy / 2;
