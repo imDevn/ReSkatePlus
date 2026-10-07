@@ -117,6 +117,13 @@ add_library(dingosdk_runtime SHARED
     Engine/Game/Skater/skater_skeleton.cpp
     Extension/Skater/skater_body_debug.cpp
     Extension/Skater/skater_state_debug.cpp
+    Extension/Skater/style_layer.cpp
+    Extension/Skater/style_commands.cpp
+    Extension/Skater/style_editor.cpp
+    Extension/Skater/style_stage.cpp
+    Extension/Skater/style_takes.cpp
+    Extension/Skater/style_file.cpp
+    Extension/Skater/style_skeleton.cpp
     Extension/Skater/no_bail.cpp
     Extension/Skater/hall_of_meat.cpp
     Extension/Skater/hall_of_meat_card.cpp
