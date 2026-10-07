@@ -1,14 +1,16 @@
 # ReSkate+
 
-Built on ReSkate version: **1.1.4**
+Play it offline, host your own lobbies and dedicated servers, and mod it.\
+The launcher, the runtime that loads into the game, the dedicated server, or even this repo (wink).
 
-Play it offline, host your own lobbies and dedicated servers, and mod it.
-the launcher, the runtime that loads into the game, and the dedicated server.
-
-> ReSkate+ is a fan project. It is not affiliated with or endorsed by Electronic Arts or Full Circle.
+> ReSkate+ is a fan project of a fan project.\
+> It is not affiliated with or endorsed by Electronic Arts or Full Circle.\
 > You need your own copy of skate. on Steam.
 
 ## Features
+
+Compatible with servers running: **1.1.4**\
+Older/newer versions _should_ work unless the packet structure or SteamAPI handshake validation has changed.
 
 - **Offline play.** No EA servers needed. Your skater, outfits, unlocks and progress are saved on your PC,
   and the game runs even with Steam closed.
@@ -46,8 +48,10 @@ the launcher, the runtime that loads into the game, and the dedicated server.
   road rash, airtime, fall and top speed, each scoring.
 - **Style editor.** Modify the look of tricks with keyframes, visible to other players.
 - **Random community parks.** Options to randomize the current community parks, can also randomize on game start.
+- **Deprecated/NSFW mods** Launcher toggles to enable showing every mod on the Thunderstore, wether they have been
+  abandoned or marked as being not safe for work.
 - **Special/Developer menu access.** View and utilize the special and developer menus that are normally locked to
-  "reserved" players. Developer menu is only visible to one person, now your included.
+  "reserved" players.
 
 ## Getting started
 
