@@ -34,6 +34,8 @@ void level_picker(SkateMenu& menu, const Model& model, const CallbacksV3& callba
     for (const auto& level : model.levels) {
         if (same(level.asset, root_asset)) root = &level;
         else {
+            // Exclude the splash level and any engine entries that reference it.
+            if (!native_tools::listed(level)) continue;
             destinations.push_back(&level);
             if (same(level.asset, menu.destination)) selected = &level;
         }

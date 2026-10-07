@@ -35,6 +35,8 @@ inline const overlay::Level* level(const overlay::Model& model, std::string_view
 inline bool listed(const overlay::Level& entry) {
     if (same(entry.asset, root_asset)) return false;
     const auto name = std::string_view(entry.asset).substr(entry.asset.find_last_of("/\\") + 1);
+    // any asset that contains the splash identifier as well as the plain name.
+    if (entry.asset.find(std::string(splash_asset)) != std::string::npos) return false;
     return !same(name, splash_asset);
 }
 inline std::string level_name(const overlay::Level& entry) {
@@ -75,7 +77,7 @@ inline bool can_park(const overlay::Model& m, const overlay::CallbacksV3& cb) {
 inline constexpr std::array<const char*, 7> time_of_day_keys{
     "1_morning", "2_noon", "3_afternoon", "4_evening", "5_night", "6_weatherday", "7_weathernight"};
 inline constexpr std::array<const char*, 8> time_of_day_labels{
-    "Default", "Morning", "Noon", "Afternoon", "Evening", "Night", "Weather (day)", "Weather (night)"};
+    "Default", "Morning", "Noon", "Afternoon", "Evening", "Night", "Weather (Day)", "Weather (Night)"};
 inline std::size_t time_of_day_layer(WorldMap map, unsigned slot) {
     const auto key = std::string(world_map_key(map)) + "_tod_" + time_of_day_keys[slot];
     for (std::size_t i = 0; i < world_layers().size(); ++i) if (world_layers()[i].key == key) return i;
