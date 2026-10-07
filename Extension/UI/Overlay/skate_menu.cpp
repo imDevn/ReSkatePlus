@@ -373,8 +373,7 @@ void draw_skate_menu(SkateMenu& menu, const Model& model, const CallbacksV3& cal
         // Developer (the network view) is hidden for now; offline there is no Multiplayer either.
         // Special is only there for a player the backend lists.
         const auto hidden = [&](int page) {
-            return page == developer || (model.steam_offline && page == multiplayer) ||
-                   (page == special && model.multiplayer.identity_tag.empty());
+            return (model.steam_offline && page == multiplayer);
         };
         if (hidden(menu.page)) menu.page = map;
         ImGui::SetCursorPos(ImVec2(px(10), px(96)));
