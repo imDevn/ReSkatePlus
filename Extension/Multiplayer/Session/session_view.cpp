@@ -177,7 +177,6 @@ void publish(Session &s, const NativeFrame *local) {
     view.saved_host = {true, s.host_preferences.public_lobby, s.host_preferences.password_required,
                        static_cast<int>(s.host_preferences.capacity), s.host_preferences.tps, s.host_preferences.lobby_name};
     view.nametags = s.nametags;
-    view.custom_nametags = s.custom_nametags;
     if (const auto social = steam_social_snapshot())
         if (const auto mark = identity_mark(social->local.id)) {
             std::tie(view.identity_tag_colour, view.identity_tag) = mark_role(*mark);
@@ -229,6 +228,10 @@ void publish(Session &s, const NativeFrame *local) {
         view.server_map_rotation = s.server_map_rotation;
         view.server_map_votes = (s.server_votes & server_vote_map) != 0;
     }
+    view.player_distance = s.player_distance;
+    view.nametag_distance = s.nametag_distance;
+    view.nametag_dots = s.nametag_dots;
+    view.nametags_friends = s.nametags_friends;
     view.chat_visible = s.chat_visible;
     view.chat_filter = s.chat_filter;
     view.chat_bubbles = s.chat_bubbles;
@@ -461,6 +464,9 @@ std::vector<MultiplayerChatCommand> chat_commands(const Session &s) {
         list.push_back({"/party", "/party", "Who is in your party"});
     }
     if (dedicated_host(s)) {
+        // The server's own commands (server_votes.cpp, server_host.cpp): it answers them, and
+        // this list is only what the "/" menu offers, so one left out here still works unseen.
+        list.push_back({"/w", "/w <player> <message>", "Send a player a private message", "player"});
         if (s.server_votes & server_vote_map) list.push_back({"/vote map", "/vote map <map>", "Start a vote to change the map", "map"});
         if (s.server_votes & server_vote_kick)
             list.push_back({"/vote kick", "/vote kick <player>", "Start a vote to kick a player", "player"});
@@ -471,6 +477,9 @@ std::vector<MultiplayerChatCommand> chat_commands(const Session &s) {
             list.push_back({"/no", "/no", "Vote no in the running vote"});
         }
         if (s.server_admin) {
+            list.push_back({"/msg", "/msg <player> <message>", "Admin: message a player privately", "player"});
+            list.push_back({"/msg-party", "/msg-party <player> <message>", "Admin: message everyone in a player's party", "player"});
+            list.push_back({"/msg-admins", "/msg-admins <message>", "Admin: message the admins who are on"});
             list.push_back({"/kick", "/kick <player>", "Admin: kick a player until the server restarts", "player"});
             list.push_back({"/ban", "/ban <player>", "Admin: ban a player", "player"});
             list.push_back({"/map", "/map <map>", "Admin: change the server's map", "map"});

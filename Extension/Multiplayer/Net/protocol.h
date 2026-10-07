@@ -225,6 +225,13 @@ std::string clean_chat_text(std::string_view);
 std::string clean_roster_name(std::string_view);
 bool valid_pose(const Pose &) noexcept;
 std::vector<std::uint8_t> encode(const Packet &, bool compact_pose = false);
+// Rounds every rotation in a pose to a multiple of 2^bits in the 16-bit form a compact pose
+// packs it in (the root to at most 2^6). The pose still encodes and decodes as any other;
+// what changes is that a bone turning by less than a step is the same bytes as before, so a
+// difference from a reference leaves it out, and the low bits of the ones that did change are
+// zero and pack away. One step is about 0.0025 degrees times 2^bits: 4 bits is 0.04 degrees,
+// 7 bits a third of a degree.
+void coarsen_rotations(Pose &pose, unsigned bits) noexcept;
 // The same, with a pose encoded at another update interval (a recipient thinned by
 // distance) instead of the packet's own, so the packet need not be copied for it.
 std::vector<std::uint8_t> encode(const Packet &, bool compact_pose, std::uint32_t pose_interval_us);
@@ -322,6 +329,8 @@ class PoseBuffer {
     bool sample(std::uint64_t now_us, Pose &out) const;
     std::optional<Pose> sample(std::uint64_t now_us) const;
     bool sample_remote(std::uint64_t now_us, Pose &out);
+    // Whether a pose arrived within this long: sampling gives up after a second without one.
+    bool heard_within(std::uint64_t now_us, std::uint64_t age_us) const;
     std::optional<Pose> sample_remote(std::uint64_t now_us);
     PosePlayback playback() const { return playback_; }
     void clear();

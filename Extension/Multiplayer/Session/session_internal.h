@@ -1,6 +1,7 @@
 #pragma once
 #include "Engine/Game/Multiplayer/chat_rate.h"
 #include "session.h"
+#include "Extension/Multiplayer/developer_identity.h"
 #include "Extension/Customization/developer_hoodie.h"
 #include "Extension/Customization/developer_board.h"
 #include "Extension/Multiplayer/Remote/native_skater.h"
@@ -91,6 +92,8 @@ struct Peer {
     // A skater removed for lack of poses is not spawned again before this: a spawn is a heavy
     // native pass, and a player's poses may stop and start again and again.
     std::uint64_t next_spawn{};
+    // Near enough to be shown as a skater; and whether a pose has placed them yet.
+    bool shown_wanted = true, placed{};
     ReceiveBudget budget;
     PoseBuffer poses;
     Pose render_pose;
@@ -228,7 +231,11 @@ struct Session {
     unsigned capacity = max_players;
     // Local display preferences, loaded once from the profile. Never sent to peers.
     bool nametags = true, chat_visible = true, display_preferences_loaded{};
-    bool custom_nametags = true; // ReSkate's nametags instead of the game's (Hud/custom_nametags.h)
+    float nametag_distance = 120.f; // names within this many metres, dots past it
+    // Only players within this many metres have a skater (session.cpp); checked a few times a second.
+    float player_distance = 120.f;
+    std::uint64_t next_shown_rank{};
+    bool nametag_dots = true, nametags_friends{};
     bool chat_filter = true;     // bad words in chat show as **** (Engine/Core/Text/word_filter.h)
     // Chat bubbles above each skater's head (Hud/custom_nametags.h, nametag_overlay.cpp).
     bool chat_bubbles = true, chat_bubbles_own{};
@@ -324,9 +331,12 @@ inline bool dedicated_host(const Session &s) { return s.mode == Mode::join && ga
 // Whether Steam itself vouches for this player's identity to this PC: a host's guests and a
 // guest's host are connected directly, and so is another guest once the direct handshake is
 // done. Anyone else is known only from the host's roster, which a host can fill as it likes,
-// so what rests on who a player is (the developer and friend marks) waits for this.
+// so what rests on who a player is (the developer and friend marks) waits for this. An
+// official server is the exception: Steam vouches for it to this PC and for each player to
+// it, and it is ours, so its roster is taken at its word. On a busy one a player is
+// connected directly to only the few nearest, and the rest would show no tag.
 inline bool steam_vouched(const Session &s, const Peer &peer) {
-    return s.mode != Mode::join || peer.member.id == s.host_id || peer.direct_ready;
+    return s.mode != Mode::join || peer.member.id == s.host_id || peer.direct_ready || official_server(s.host_id);
 }
 // Whether a player shows the tag the backend gives them, and whether the items that come with
 // it animate: not until their appearance has arrived, and not when it says they turned that
