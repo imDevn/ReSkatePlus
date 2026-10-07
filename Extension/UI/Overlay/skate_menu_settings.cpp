@@ -22,8 +22,12 @@ void ui_page(SkateMenu& menu, const Model& model, const CallbacksV3& callbacks) 
     begin_card(menu, "on-screen", "ON SCREEN");
     bool hidden = model.debug.game_ui_hidden;
     if (toggle_row(menu, "Hide game UI", "Keep the view clear for riding and captures.", hidden,
-            model.debug.available && model.debug.ui_available && callbacks.queue_debug))
-        debug_request(menu, callbacks, {DebugAction::set_game_ui_hidden, hidden});
+            model.debug.available && model.debug.ui_available && callbacks.queue_debug)) {
+        // Persist the user's preference across runs. Do not apply the native UI change from
+        // the overlay while game menus are open; the client-side debug tick will apply the
+        // saved preference when it is safe to do so (menus closed / writable UI object).
+        dingosdk::profile_runtime::set_local_preference("HideGameUI", hidden);
+    }
     const auto back = dingosdk::launcher::key_name(dingosdk::launcher::overlay_keys().menu) + " always brings ReSkate back.";
     note(back.c_str());
     end_card();

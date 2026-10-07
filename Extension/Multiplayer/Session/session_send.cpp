@@ -473,7 +473,8 @@ void update_physics_tuning(Session &s, const NativeFrame &local, std::uint64_t n
     // A guest whose host sets everyone's physics: the player's own edits stand down from the
     // moment of joining (the roster says otherwise, if it does) and through travel, and what
     // the host shares beyond its tuning is theirs. A dedicated server shares the game's own.
-    const bool enforced = s.mode == Mode::join && s.enforce_tuning;
+    const bool match_host_pref = profile_runtime::local_preference("Trainer.MatchHostTuning").value_or(true);
+    const bool enforced = s.mode == Mode::join && (s.enforce_tuning || (match_host_pref && (dedicated_host(s) || s.host_tuning.has_value())));
     set_session_tuning_enforced(enforced);
     if (enforced && s.host_extras && !dedicated_host(s)) set_host_physics_extras(*s.host_extras);
     else set_host_physics_extras({});
@@ -522,7 +523,7 @@ void update_physics_tuning(Session &s, const NativeFrame &local, std::uint64_t n
         broadcast(s, p, true, false, now);
         return;
     }
-    if (s.mode == Mode::join && s.roster_sequence && s.enforce_tuning) {
+    if (s.mode == Mode::join && s.roster_sequence && enforced) {
         if (!world_playing(s, local)) return; // kept as it is while travelling
         physics_tuning::prepare();
         if (dedicated_host(s))
