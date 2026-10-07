@@ -7,10 +7,7 @@
 #include "Engine/Core/Log/logging.h"
 
 #include <cstdio>
-#include <fstream>
-#include <iterator>
 #include <format>
-#include <Engine/Core/Json/json.h>
 
 // The Mods panel's BROWSE page: packages from Thunderstore, their icons, and
 // downloading and installing them on the panel's worker.
@@ -200,26 +197,12 @@ std::string install_package(ModsPanel& panel, const fs::path& root, const ts::Pa
 
 // Search, category and the sort order, pinned packages first like the site.
 std::vector<const ts::Package*> visible_packages(const Store& store, const ts::Installed& installed) {
-    wchar_t path[MAX_PATH]{};
-    const auto length = GetModuleFileNameW(nullptr, path, MAX_PATH);
-    if (!length || length >= MAX_PATH) return {};
-    const auto root = std::filesystem::canonical(std::filesystem::path(std::wstring(path, length))).parent_path();
-    const auto settings_path = root / L"ReSkate.settings.json";
-    Json settings = Json::object();
-    if (std::filesystem::exists(settings_path)) {
-        std::ifstream file(settings_path, std::ios::binary);
-        std::string contents;
-        contents.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-        settings = Json::parse(std::string_view(contents.data(), contents.size()));
-    }
-    const bool show_deprecated = settings.value("show_deprecated", false);
-    const bool show_nsfw = settings.value("show_nsfw", false);
     const auto query = lower(store.search.data());
     std::vector<const ts::Package*> result;
     for (const auto& package : store.packages) {
         const bool have = installed.contains(ts::folder_for(package.full_name));
         // Deprecated and NSFW packages only show once installed.
-        if (((package.deprecated && !show_deprecated) || (package.nsfw && !show_nsfw)) && !have) continue;
+        if ((package.deprecated || package.nsfw) && !have) continue;
         if (!store.category.empty() && !package.in_category(store.category)) continue;
         if (!query.empty() && lower(package.title()).find(query) == std::string::npos &&
             lower(package.owner).find(query) == std::string::npos &&
