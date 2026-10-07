@@ -9,7 +9,7 @@ The launcher, the runtime that loads into the game, the dedicated server, or eve
 
 ## Features
 
-Compatible with servers running: **1.1.4**\
+Compatible with servers running: **1.1.5**\
 Older/newer versions _should_ work unless the packet structure or SteamAPI handshake validation has changed.
 
 - **Offline play.** No EA servers needed. Your skater, outfits, unlocks and progress are saved on your PC,
