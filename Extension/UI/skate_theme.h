@@ -28,8 +28,9 @@ inline constexpr ImU32 friends_text = IM_COL32(120, 226, 156, 255);
 inline constexpr ImU32 black = IM_COL32(0, 0, 0, 255);
 inline constexpr ImU32 white = IM_COL32(245, 245, 245, 255);
 inline constexpr ImU32 grey_text = IM_COL32(150, 152, 158, 255);
-inline constexpr ImU32 bar = IM_COL32(255, 177, 11, 255);
-inline constexpr ImU32 bar_stripe = IM_COL32(255, 140, 0, 255);
+// Progress bar colours: use the accent light-green instead of the original orange
+inline constexpr ImU32 bar = IM_COL32(120, 226, 156, 255);
+inline constexpr ImU32 bar_stripe = IM_COL32(150, 240, 180, 255);
 inline constexpr ImU32 good = IM_COL32(46, 184, 92, 255);
 inline constexpr ImU32 danger = IM_COL32(255, 92, 92, 255);
 inline constexpr ImU32 warning = IM_COL32(255, 177, 11, 255);
