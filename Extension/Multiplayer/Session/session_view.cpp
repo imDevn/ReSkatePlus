@@ -438,10 +438,6 @@ std::vector<MultiplayerChatCommand> chat_commands(const Session &s) {
         {"/help", "/help", "List these commands"},
         {"/tp", "/tp <player>", "Teleport beside a player (or /tp <x> <y> <z>)", "player"},
         {"/p", "/p <message>", "Talk to your party only"},
-        {"/mark-tag", "/mark-tag <on|off|toggle>", "Show or hide your identity tag (special users)."},
-        {"/mark-items", "/mark-items <on|off|toggle>", "Show or hide your identity items (special users)."},
-        {"/mark-style", "/mark-style <item> <mode> <rrggbb> <rrggbb> <speed>",
-         "Set a cosmetic style: item, mode(0=list,1=off,2=gradient,3=solid,4=rainbow), from,to hex, speed(0-2)"},
     };
     if (s.mode == Mode::host || s.mode == Mode::join) {
         list.push_back({"/party invite", "/party invite <player>", "Invite a player to your party", "player"});

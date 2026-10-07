@@ -332,7 +332,30 @@ void networking(Session &s, const NativeFrame &local, std::uint64_t now) {
         stop(s, s.transport.status().detail);
         return;
     }
+    // The backend's bans (reskate_banned) arrive while a session runs: a banned player stops
+    // hosting theirs, and nobody stays with a banned host. A banned guest is for the host or
+    // the server to turn away (below, and Host::tick), which a server may choose not to.
+    if (s.mode == Mode::host && reskate_banned(s.transport.status().local_id)) {
+        stop(s, std::string(banned_notice));
+        return;
+    }
+    if (s.mode == Mode::join && reskate_banned(s.host_id)) {
+        stop(s, "This host is banned from ReSkate multiplayer.");
+        return;
+    }
     for (const auto &link : links) {
+        if (s.mode == Mode::host && s.banned.contains(link.id)) {
+            s.transport.disconnect(link.id, "You were kicked from this session.");
+            continue;
+        }
+        if (s.mode == Mode::host && is_banned(s, link.id)) {
+            s.transport.disconnect(link.id, "You are banned from this host's lobbies.");
+            continue;
+        }
+        if (s.mode == Mode::host && reskate_banned(link.id)) {
+            s.transport.disconnect(link.id, banned_notice.data());
+            continue;
+        }
         auto *p = find_peer(s, link.id);
         if (!p && s.mode == Mode::host && s.join_backoff.waiting(link.id, now)) {
             s.transport.disconnect(link.id, "Too many failed attempts to join. Wait a little and try again.");
@@ -417,6 +440,13 @@ void networking(Session &s, const NativeFrame &local, std::uint64_t now) {
         // A dedicated server sends no poses; its roster and control traffic keep it alive.
         if (dedicated_host(s) && message.peer == s.host_id) link->last_packet = now;
         if (p.kind == PacketKind::world_state) {
+            if (s.mode != Mode::join || message.peer != s.host_id || p.source != s.host_id ||
+                !link->handshaken || p.epoch != link->member.epoch ||
+                p.build != supported_build::game_sha256_bytes) {
+                disconnect(s, message.peer, "Only the admitted host may change the room's map.");
+                if (s.mode == Mode::off) return;
+                continue;
+            }
             if (p.world < s.world || (p.world == s.world && s.world_state_sequence &&
                                      !newer_sequence(p.sequence, s.world_state_sequence)))
                 continue;
@@ -702,8 +732,9 @@ void networking(Session &s, const NativeFrame &local, std::uint64_t now) {
         }
         // Only the host (or dedicated server) moves players: tpall and tphere.
         if (p.kind == PacketKind::teleport) {
-            if (s.mode == Mode::join && message.peer == s.host_id && p.source == s.host_id)
-                add_chat(s, 0, "ReSkate", dedicated_host(s) ? "A server admin tried to teleport you." : "The host tried to teleport you.");
+            if (s.mode == Mode::join && message.peer == s.host_id && p.source == s.host_id &&
+                dingosdk::teleport_local_skater(p.teleport))
+                add_chat(s, 0, "ReSkate", dedicated_host(s) ? "A server admin teleported you." : "The host teleported you.");
             continue;
         }
         // The host's physics tuning (Extension/Skater/physics_tuning.h), for its guests only.
@@ -886,6 +917,7 @@ void networking(Session &s, const NativeFrame &local, std::uint64_t now) {
                 s.last_routes = now;
         }
     }
+    update_scoring(s, now); // before the roster, so a host's own flag goes out with it
     tick_host_parties(s, now); // and the lobby's parties, which the roster carries
     if (s.mode == Mode::host && world_playing(s, local) && (s.roster_dirty || now - s.last_roster > 2000000))
         send_roster(s, now);

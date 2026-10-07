@@ -1,7 +1,4 @@
 # ReSkate+
-
-Built on ReSkate version: **1.1.4**
-
 Play it offline, host your own lobbies and dedicated servers, and mod it.
 the launcher, the runtime that loads into the game, and the dedicated server.
 
@@ -23,6 +20,9 @@ the launcher, the runtime that loads into the game, and the dedicated server.
   - World: time of day, population, district levels, rotating parks.
   - The **Park Editor**: place, move and save objects with freecam, snapping and undo.
   - Skater options: first person, movement, boosts, noclip.
+  - **Hall of Meat**: bail and see the bones you hurt, bruised ones yellow and broken ones red, with a
+    skate. 3 style Meat card, drawn with skate.'s own brush strokes: the bail's time, hits (head hits double, vehicles half again), broken bones,
+    road rash, airtime, fall and top speed, each scoring.
   - Progression, controls, graphics and multiplayer settings.
 - **Mods.**
   - Drop a mod in `Mods/` and it is merged into the game at launch. Mods can add custom maps, loading
@@ -34,20 +34,6 @@ the launcher, the runtime that loads into the game, and the dedicated server.
   - Checks that you have the supported game build, and can download exactly that build with your Steam
     account.
   - Keeps ReSkate+ itself up to date.
-
-### Features+
-
-- **No reserved cosmetics.**
-  - Full access to **all** content available inside the base game.
-  - This includes limited time reedemable items, skate.Pass, store offers/bundles and all cosmetics/items that cost SVB.
-- **Hall of Meat**: Bail and see the bones you hurt, bruised ones yellow and broken ones red, with a
-  skate. 3 style Meat card, drawn with skate.'s own brush strokes: the bail's time, hits (head hits double, 
-  vehicles half again), broken bones,
-  road rash, airtime, fall and top speed, each scoring.
-- **Style editor.** Modify the look of tricks with keyframes, visible to other players.
-- **Random community parks.** Options to randomize the current community parks, can also randomize on game start.
-- **Special/Developer menu access.** View and utilize the special and developer menus that are normally locked to
-  "reserved" players. Developer menu is only visible to one person, now your included.
 
 ## Getting started
 
@@ -93,16 +79,16 @@ accepts `park random` from its console or an admin.
 | What | Where |
 |---|---|
 | Mods | `Mods\<mod name>\` beside `Skate.exe`, ordered by `Mods\mods.json` |
-| Logs | `logs\ReSkate.log` beside `Skate.exe` |
-| Profile (skater, progress, parks) | `%LOCALAPPDATA%\ReSkate\profiles\offline\` |
-| The game's own settings and saves | `%LOCALAPPDATA%\ReSkate\Game\` (kept apart from the normal game) |
+| Logs | `logs\ReSkatePlus.log` beside `Skate.exe` |
+| Profile (skater, progress, parks) | `%LOCALAPPDATA%\ReSkatePlus\profiles\offline\` |
+| The game's own settings and saves | `%LOCALAPPDATA%\ReSkatePlus\Game\` (kept apart from the normal game) |
 | Launcher settings | `ReSkatePlusLauncher.settings.json` beside the launcher |
 
 ## Mods
 
 - Install mods from the launcher's **MODS** page: browse Thunderstore, or drag a `.zip` or folder onto the
   window.
-- In game, the **MODS** tab of the ReSkate+ menu (**Insert**) turns mods on and off and applies the changes.
+- In game, the **MODS** tab of the ReSkatePlus menu (**Insert**) turns mods on and off and applies the changes.
 - Mods are checked against the game build they were made for. Outdated mods, or mods that can't be merged
   cleanly, are left out with a message naming them, and the rest still load.
 - A mod that adds songs can give them their own playlist in the game's music screen with a
@@ -270,27 +256,27 @@ login name.
 To turn it off, untick **Send crash reports** in the launcher's Settings (ADVANCED), or set the
 environment variable `RESKATE_CRASH_REPORTING=0`.
 
-ReSkate+ also keeps the game off EA's online services: the game's own crash reports, telemetry and
+ReSkatePlus also keeps the game off EA's online services: the game's own crash reports, telemetry and
 remote configuration requests are turned off and blocked. Fast-travel artwork still comes from EA's
 image CDN (`dingo-dev-assets.akamaized.net`), which only downloads images.
 [contrib/ea-watch.ps1](contrib/ea-watch.ps1) shows what the game connects to, if you want to check.
 
 ## Third-party code
 
-ReSkate+ uses Dear ImGui, Microsoft Detours, RapidJSON, spdlog, SQLite, LZ4, Zstandard, miniz, bcdec and
+ReSkatePlus uses Dear ImGui, Microsoft Detours, RapidJSON, spdlog, SQLite, LZ4, Zstandard, miniz, bcdec and
 Valve's networking headers, and the Montserrat and Permanent Marker fonts. Versions, licenses and local
 patches are in [External/README.md](External/README.md). Every release ships their license files in
 `licenses/`.
 
 ## License
 
-Copyright © 2026 the ReSkate+ contributors.
+Copyright © 2026 the ReSkatePlus contributors.
 
-ReSkate+'s source code is free software: you can redistribute it and modify it under the terms of the
-[GNU General Public License, version 3](LICENSE). If you share a modified ReSkate+, share its source
+ReSkatePlus's source code is free software: you can redistribute it and modify it under the terms of the
+[GNU General Public License, version 3](LICENSE). If you share a modified ReSkatePlus, share its source
 code under the same license.
 
-The license covers ReSkate+'s own code. It does not cover:
+The license covers ReSkatePlus's own code. It does not cover:
 
 - **Third-party libraries and fonts** in `External/`, which keep their own licenses (see
   [External/README.md](External/README.md)).
@@ -304,3 +290,6 @@ The license covers ReSkate+'s own code. It does not cover:
 Parts of ReSkate, including code, reverse-engineering notes and documentation, were written with the
 help of AI coding assistants. The maintainers direct and test that work, but AI-written code can contain
 mistakes like any other. If something looks wrong, please open an issue.
+
+ReSkatePlus is not built with AI as part of its development. I can't speak on other incorporated 
+repositories, but everything is checked before being merged into this project.'
