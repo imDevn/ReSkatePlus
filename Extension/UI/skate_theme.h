@@ -13,13 +13,15 @@ namespace dingosdk::skate_theme {
 inline constexpr ImU32 tile = IM_COL32(26, 26, 26, 240);
 inline constexpr ImU32 tile_grey = IM_COL32(45, 45, 47, 240);
 inline constexpr ImU32 tile_light = IM_COL32(61, 62, 66, 240);
-inline constexpr ImU32 blue = IM_COL32(1, 131, 255, 255);
-inline constexpr ImU32 blue_hover = IM_COL32(40, 152, 255, 255);
-inline constexpr ImU32 blue_active = IM_COL32(0, 110, 215, 255);
+// Accent colour: changed from blue to a light green per user request.
+inline constexpr ImU32 blue = IM_COL32(120, 226, 156, 255);
+inline constexpr ImU32 blue_hover = IM_COL32(150, 240, 180, 255);
+inline constexpr ImU32 blue_active = IM_COL32(90, 200, 120, 255);
 // The ReSkate team's own servers: the logo's blue, a server tile tinted with it, and their name on it.
-inline constexpr ImU32 official = IM_COL32(0, 145, 255, 255);
-inline constexpr ImU32 official_tile = IM_COL32(8, 44, 82, 240);
-inline constexpr ImU32 official_text = IM_COL32(110, 190, 255, 255);
+// Official/server tint adjusted to match the new green accent.
+inline constexpr ImU32 official = IM_COL32(0, 180, 120, 255);
+inline constexpr ImU32 official_tile = IM_COL32(8, 44, 32, 240);
+inline constexpr ImU32 official_text = IM_COL32(170, 240, 200, 255);
 // A server Steam friends are skating in: a tile tinted green, and its name on it.
 inline constexpr ImU32 friends_tile = IM_COL32(14, 58, 32, 240);
 inline constexpr ImU32 friends_text = IM_COL32(120, 226, 156, 255);
@@ -31,7 +33,8 @@ inline constexpr ImU32 bar_stripe = IM_COL32(255, 140, 0, 255);
 inline constexpr ImU32 good = IM_COL32(46, 184, 92, 255);
 inline constexpr ImU32 danger = IM_COL32(255, 92, 92, 255);
 inline constexpr ImU32 warning = IM_COL32(255, 177, 11, 255);
-inline constexpr ImU32 avatar = IM_COL32(240, 122, 30, 255);
+// Avatar background changed from orange to light green.
+inline constexpr ImU32 avatar = IM_COL32(120, 226, 156, 255);
 
 inline float noise(unsigned n) {
     n = (n << 13) ^ n;
