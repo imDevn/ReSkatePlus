@@ -331,7 +331,7 @@ inline bool steam_vouched(const Session &s, const Peer &peer) {
 // off (Appearance::hide_tag, Appearance::hide_items).
 inline bool shows_tag(const Peer &peer) {
     const auto &look = peer.appearance.value();
-    return look && !look->hide_tag;
+    return static_cast<bool>(look);
 }
 inline bool shows_items(const Peer &peer) {
     const auto &look = peer.appearance.value();
