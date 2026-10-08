@@ -13,22 +13,23 @@
 #include <stdexcept>
 
 namespace dingosdk::mods {
-using namespace detail;
-namespace {
-using Node = native_db::Node;
+    using namespace detail;
+    namespace {
+        using Node = native_db::Node;
         // Where maps register themselves; read by the game only at launch.
         constexpr std::string_view launch_level_registry = "win32/globals.toc";
-// The root level: its sublevel manager lists every map, and it carries the
-// shader-state tables (material rows) and the material grid maps add to. The
-// renderer prepares the shader tables once, at launch, so the root must not
-// change under it while the game runs. Only enabled mods contribute at launch;
-// changing that set requires a restart, checked before a live merge writes anything.
-constexpr std::string_view root_level = "win32/levels/game/dingolevel_root/dingolevel_root.toc";
-// Superbundles the game mounts once, at launch. The merged patch always carries
-// its own copy of each, even one no enabled mod changes, so a mod enabled or
-// installed while the game runs has a mounted copy to replace in memory
-// (Extension/Assets/live_mods.cpp) and one disabled can be swapped back out.
-constexpr std::array<std::string_view, 2> launch_superbundles{"Win32/globals.toc", "Win32/items.toc"};
+        // The root level: its sublevel manager lists every map, and it carries the
+        // shader-state tables (material rows) and the material grid maps add to. The
+        // renderer prepares the shader tables once, at launch, so the root must not
+        // change under it while the game runs: every installed map's root edits go in
+        // at launch, disabled ones included, and a live merge keeps them as they are.
+        constexpr std::string_view root_level = "win32/levels/game/dingolevel_root/dingolevel_root.toc";
+        // Superbundles the game mounts once, at launch. The merged patch always carries
+        // its own copy of each, even one no enabled mod changes, so a mod enabled or
+        // installed while the game runs has a mounted copy to replace in memory
+        // (Extension/Assets/live_mods.cpp) and one disabled can be swapped back out.
+        constexpr std::array<std::string_view, 2> launch_superbundles{ "Win32/globals.toc", "Win32/items.toc" };
+    } // namespace
 
     MergeReport merge_mods(const Catalog& catalog, const MergeObserver& observe, const MergeOptions& options) noexcept {
         MergeReport report;
@@ -44,123 +45,10 @@ constexpr std::array<std::string_view, 2> launch_superbundles{"Win32/globals.toc
             std::map<const Mod*, RelativeFiles> modFiles;
             for (const auto* mod : mods) modFiles[mod] = scan(mod->directory);
 
-
-        std::vector<const Mod*> mods;
-        for (const auto& mod : catalog.mods) if (mod.provides_layout) mods.push_back(&mod);
-        // Keep the launch-only base TOCs even with no enabled mods, so asset
-        // mods can still be added live. Disabled mods contribute no game data.
-        std::map<const Mod*, RelativeFiles> modFiles;
-        for (const auto* mod : mods) modFiles[mod] = scan(mod->directory);
-
-        // The renderer retains the root shader tables and material slot indices.
-        // Do not preload disabled maps to support live toggles, or rewrite a root
-        // already in use. Reject a changed root set before invalidating the stamp,
-        // appending archives, or publishing any TOC (an empty launch set counts too).
-        const auto placementsPath = output / placements_file;
-        PlacementRecord record;
-        if (options.live) {
-            record = read_placements(placementsPath);
-            std::set<std::string> requested, mounted;
-            for (const auto& [mod, files] : modFiles)
-                if (std::ranges::any_of(files.tocs, [](const std::string& toc) { return lower(toc) == root_level; }))
-                    requested.insert(mod->name);
-            for (const auto& name : record.root) mounted.insert(name);
-            if (requested != mounted) {
-                report.issue = "These mods change shared map resources; restart the game to apply the saved selection.";
-                return report;
-            }
-        }
-
-        // What the store sells comes from the content cache, which the launcher installs.
-        const bool storeKnown = content_cache::installed();
-        const auto fingerprint = merge_fingerprint(catalog, mods, modFiles, storeKnown);
-        if (options.live) {
-            fs::remove(output / stamp_file, error);
-        } else if (auto previous = previous_merge(output, fingerprint)) {
-            return std::move(*previous);
-        }
-        // A mod that adds copies of store items is not loaded at all. Found before
-        // anything is built: the caller merges again without it, as it does for a
-        // mod that cannot be merged, and the patch on disk stays for that merge to
-        // reuse or replace.
-        if (storeKnown && store_copy_problems(catalog, report)) return report;
-        if (!options.live) fs::remove_all(output, error);
-
-        // Progress: each mod's archives, each superbundle, then the layout.
-        std::set<std::string> distinctTocs;
-        for (const auto& [mod, files] : modFiles)
-            for (const auto& toc : files.tocs) distinctTocs.insert(lower(toc));
-        for (const auto relative : launch_superbundles) distinctTocs.insert(lower(relative));
-        MergeProgress progress{0, mods.size() + distinctTocs.size() + 1, mods.size(), {}};
-        const auto advance = [&](std::string step) {
-            if (!observe) return;
-            progress.step = std::move(step);
-            try { observe(progress); } catch (...) {}
-            ++progress.done;
-        };
-
-        // Every superbundle any mod ships, and who ships it, in priority order.
-        std::map<std::string, std::vector<const Mod*>, std::less<>> providers;
-        std::map<const Mod*, ArchivePlacement> placements;
-        std::vector<std::string> superbundles;
-        // layeredInstallChunkFiles enumerates the archives the engine expects,
-        // so every index a mod's payloads moved to has to be declared there.
-        ArchiveUse used;
-
-        // Every mod keeps the archive indices it was built for; where two mods
-        // ship the same one, their archives are concatenated into a single file
-        // and the later blocks are addressed by byte offset.
-        // A mod's layout is the game's (as of the build it was made for) plus
-        // its own entries. The merged layout starts from the installed game's
-        // layout and takes only each mod's own entries, so mods made for an
-        // earlier game build keep working after an update: a mod's full copy
-        // would carry the old build's layout, and the game then waits on the
-        // splash for bundles that layout places wrongly.
-        auto parsedLayout = vfs::read_layout(catalog.data_root / L"Data" / L"layout.toc");
-        auto& layout = parsedLayout.root;
-        const auto baseRoot = catalog.data_root / L"Data";
-        const auto gameRoot = catalog.data_root;
-        CasStore store(baseRoot, output, layout);
-        // Mods are built against archive 1, so that is where the rebuilt
-        // manifests go too: an index the engine already knows in every package.
-        constexpr std::uint16_t manifestArchive = 1;
-
-        // What the layout declares in each package directory. A free index is
-        // judged against its own directory rather than every directory at once
-        // (judged against the union, three mods used up the gaps), lowest
-        // first, and carries on past the highest index the game declares: the
-        // engine keeps archives in a table keyed by layer, install chunk and a
-        // 16-bit index, with no range to stay inside. What it cannot survive is
-        // a reference to an archive the layout never declared.
-        std::map<std::string, std::set<std::uint16_t>> declaredIn;
-        for (const auto* field : {"layeredInstallChunkFiles", "unlayeredInstallChunkFiles"}) {
-            const auto* node = layout.field(field);
-            if (!node || node->type != 19) continue;
-            for_each_install_chunk_file(node->payload(), [&](std::uint32_t id, std::uint16_t archive) {
-                if (const auto* directory = store.find_directory(id)) declaredIn[*directory].insert(archive);
-            });
-        }
-        std::map<std::string, std::set<std::uint16_t>> claimedArchives;
-        const auto claim = [&](const std::string& directory) -> std::optional<std::uint16_t> {
-            const auto& declared = declaredIn[directory];
-            auto& claimed = claimedArchives[directory];
-            for (std::uint32_t candidate = 1; candidate <= std::numeric_limits<std::uint16_t>::max(); ++candidate) {
-                const auto index = static_cast<std::uint16_t>(candidate);
-                if (!declared.contains(index) && claimed.insert(index).second) return index;
-            }
-            return std::nullopt;
-        };
-
-        // Place only enabled mods. A later asset mod can use the append path;
-        // a later map that changes root resources must first pass the guard above.
-        for (const auto* mod : mods) {
-            const auto& files = modFiles.at(mod);
-            advance("Linking " + mod->name);
-            for (const auto& relative : files.tocs) {
-                auto& list = providers[lower(relative)];
-                if (list.empty()) superbundles.push_back(relative);
-                list.push_back(mod);
-            }
+            // Disabled mods count too: their archives and map registration are placed at launch.
+            auto fingerprint = merge_fingerprint(catalog, mods, modFiles);
+            for (const auto& mod : catalog.inactive)
+                fingerprint += "\ninactive " + mod.name + " " + mod_fingerprint(mod.directory);
             if (options.live) {
                 fs::remove(output / stamp_file, error);
             }
@@ -377,73 +265,23 @@ constexpr std::array<std::string_view, 2> launch_superbundles{"Win32/globals.toc
                     fs::create_directories(path.parent_path(), error);
                     write_file(path, {});
                 }
-                placements[mod].at.emplace(std::pair{directory, number}, spot);
-                if (spot.archive != number || spot.offset)
-                    report.notes.push_back(mod->name + ": " + directory + "/cas_" +
-                        std::to_string(number) + " placed as cas_" + std::to_string(spot.archive) +
-                        (spot.offset ? " at byte " + std::to_string(spot.offset) : std::string{}));
-                ++report.archives;
-            }
-            record.mods[mod->name] = placements[mod];
-        }
 
-        for (const auto relative : launch_superbundles)
-            if (providers.try_emplace(lower(relative)).second) superbundles.emplace_back(relative);
-        // A mod added while the game runs has no archive index declared for it,
-        // so its archives go on the end of the patch's own archive 1 (see the
-        // live placement above). Every package gets one from launch, empty if
-        // nothing needs it, so that works in any package.
-        if (!options.live)
-            for (const auto& [directory, declared] : declaredIn) {
-                if (!declared.contains(manifestArchive)) continue;
-                const auto path = output / L"Win32" / fs::path(directory) / archive_file(manifestArchive);
-                if (fs::exists(path, error)) continue;
-                fs::create_directories(path.parent_path(), error);
-                write_file(path, {});
-            }
-
-        // Maps that author their own surfaces all number them from the same
-        // first free slot of the game's material grid; they are combined into
-        // the one grid the game reads before any bundle is merged, so each
-        // map's collision can be renumbered as its bundles go by.
-        // The root keeps its launch order, even when mods.json is reordered,
-        // so material slots held by the renderer cannot move during a live apply.
-        auto& rootMods = providers[std::string(root_level)];
-        if (options.live && !record.root.empty()) {
-            std::vector<const Mod*> ordered;
-            for (const auto& name : record.root)
+            // Maps that author their own surfaces all number them from the same
+            // first free slot of the game's material grid; they are combined into
+            // the one grid the game reads before any bundle is merged, so each
+            // map's collision can be renumbered as its bundles go by.
+            // The root keeps the order it was first merged in: the launch's mods as
+            // they were then, and any map installed since after them, so nothing
+            // the game already holds from the root moves.
+            auto& rootMods = providers[std::string(root_level)];
+            if (options.live && !record.root.empty()) {
+                std::vector<const Mod*> ordered;
+                for (const auto& name : record.root)
+                    for (const auto* mod : rootMods)
+                        if (mod->name == name) ordered.push_back(mod);
                 for (const auto* mod : rootMods)
-                    if (mod->name == name) ordered.push_back(mod);
-            for (const auto* mod : rootMods)
-                if (std::find(ordered.begin(), ordered.end(), mod) == ordered.end()) ordered.push_back(mod);
-            rootMods = std::move(ordered);
-        }
-        std::vector<std::string> rootNames;
-        for (const auto* mod : rootMods) rootNames.push_back(mod->name);
-        // The preflight required the same root contributors as at launch.
-        // Keep their mounted root byte for byte during a live apply.
-        const bool keepRoot = options.live && rootNames == record.root && !rootNames.empty() &&
-                              fs::exists(output / fs::path(root_level), error);
-        record.root = rootNames;
-        // rootMods belongs to providers; finish using it before erasing its node.
-        const auto grid = plan_material_grid(rootMods, modFiles, store, baseRoot, gameRoot, report);
-        if (rootMods.empty()) {
-            providers.erase(std::string(root_level));
-            std::erase_if(superbundles, [](const std::string& relative) { return lower(relative) == root_level; });
-        }
-        if (options.live) report.load_screens = read_load_screens(mods, modFiles, store, baseRoot, gameRoot, report);
-        auto overrides = collect_asset_overrides(mods, modFiles, store, baseRoot, gameRoot, report);
-        // Carried chunks point into their mod's archives; move them to where those landed.
-        for (auto& [name, chunks] : overrides.chunks)
-            for (const auto* mod : mods)
-                if (mod->name == name)
-                    for (auto& chunk : chunks) store.shift(chunk.location, chunk.offset, &placements[mod]);
-
-        for (const auto& relative : superbundles) {
-            if (keepRoot && lower(relative) == root_level) {
-                advance("Keeping the root level as the game has it");
-                ++report.superbundles;
-                continue;
+                    if (std::find(ordered.begin(), ordered.end(), mod) == ordered.end()) ordered.push_back(mod);
+                rootMods = std::move(ordered);
             }
             std::vector<std::string> rootNames;
             for (const auto* mod : rootMods) rootNames.push_back(mod->name);
@@ -512,46 +350,12 @@ constexpr std::array<std::string_view, 2> launch_superbundles{"Win32/globals.toc
                 write_placements(placementsPath, record);
             }
 
-        // The layout lists every superbundle the merged layer now provides.
-        advance("Writing the layout");
-        auto* list = layout.field("superBundles");
-        if (!list || list->type != 1) throw std::runtime_error("layout.toc has no superBundles list");
-        std::set<std::string, std::less<>> known;
-        for (const auto& row : list->children) {
-            const auto* name = row.field("name");
-            if (name && name->type == 7) known.emplace(lower(name->text));
-        }
-        // A mod's own layout.toc. A damaged one is that mod's problem: the merge runs again without it.
-        const auto mod_layout = [&](const Mod& mod) -> std::optional<vfs::Layout> {
-            try {
-                return vfs::read_layout(mod.directory / L"layout.toc");
-            } catch (const std::exception& error) {
-                report.problems[mod.name].push_back(std::string("layout.toc could not be read: ") + error.what());
-                return std::nullopt;
-            }
-        };
-        for (const auto* mod : mods) {
-            const auto ownLayout = mod_layout(*mod);
-            if (!ownLayout) continue;
-            const auto& own = ownLayout->root;
-            const auto* ownManifest = own.field("installManifest");
-            const auto* ownChunks = ownManifest ? ownManifest->field("installChunks") : nullptr;
-            if (!ownChunks) continue;
-            for (const auto& chunk : ownChunks->children) {
-                const auto* chunkName = chunk.field("name");
-                const auto* held = chunk.field("superbundles");
-                if (!chunkName || !held) continue;
-                for (const auto& entry : held->children)
-                    if (entry.type == 7) report.superbundle_chunks.emplace_back(entry.text, chunkName->text);
-            }
-        }
-        for (const auto* mod : mods) {
-            const auto otherLayout = mod_layout(*mod);
-            if (!otherLayout) continue;
-            const auto& other = otherLayout->root;
-            const auto* otherList = other.field("superBundles");
-            if (!otherList) continue;
-            for (const auto& row : otherList->children) {
+            // The layout lists every superbundle the merged layer now provides.
+            advance("Writing the layout");
+            auto* list = layout.field("superBundles");
+            if (!list || list->type != 1) throw std::runtime_error("layout.toc has no superBundles list");
+            std::set<std::string, std::less<>> known;
+            for (const auto& row : list->children) {
                 const auto* name = row.field("name");
                 if (name && name->type == 7) known.emplace(lower(name->text));
             }
