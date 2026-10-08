@@ -1,3 +1,7 @@
+set(version_file_name "1.0.4.exe" CACHE STRING "Filename")
+set(version_internal_name "ReSkatePlus" CACHE STRING "Internal name")
+set(version_file_type "VFT_APP" CACHE STRING "File version")
+
 if(WIN32)
     add_executable(dingosdk_launcher WIN32 Launcher/main.cpp Launcher/launch.cpp
         Launcher/gui.cpp Launcher/gui_launcher.cpp Launcher/gui_renderer.cpp Launcher/gui_home.cpp
@@ -5,8 +9,8 @@ if(WIN32)
         Launcher/updater.cpp Launcher/mod_manager.cpp Launcher/thunderstore.cpp Launcher/problem.h)
     target_link_libraries(dingosdk_launcher PRIVATE dingosdk_logging dingosdk_content_cache_install dingosdk_world_layer_scan dingosdk_launcher_support dingosdk_initfs
         dingosdk_mod_list dingosdk_mods dingosdk_json dingosdk_miniz dingosdk_imgui winhttp shell32 dwmapi windowscodecs ole32)
-    set_target_properties(dingosdk_launcher PROPERTIES OUTPUT_NAME "ReSkatePlusLauncher")
-    dingosdk_version_info(dingosdk_launcher "ReSkate+ Launcher" "ReSkatePlusLauncher.exe" VFT_APP)
+    set_target_properties(dingosdk_launcher PROPERTIES OUTPUT_NAME version_internal_name)
+    dingosdk_version_info(dingosdk_launcher "ReSkate+ Launcher" version_file_name VFT_APP)
 endif()
 
 option(DINGOSDK_BUILD_LAUNCHER_TESTS "Build launcher mod manager regression tests" OFF)
@@ -175,7 +179,7 @@ if(WIN32)
     target_link_libraries(dingosdk_server PRIVATE dingosdk_launcher_support dingosdk_world_layer_scan dingosdk_json
         dingosdk_lz4 dingosdk_zstd dingosdk_logging dingosdk_miniz dingosdk_word_filter dingosdk_https winhttp bcrypt winmm)
     set_target_properties(dingosdk_server PROPERTIES OUTPUT_NAME "ReSkateServer")
-    dingosdk_version_info(dingosdk_server "ReSkate dedicated server" "ReSkateServer.exe" VFT_APP)
+    dingosdk_version_info(dingosdk_server "ReSkate Dedicated Server" "ReSkateServer.exe" VFT_APP)
 else()
     find_package(OpenSSL REQUIRED)
     target_link_libraries(dingosdk_server PRIVATE dingosdk_launcher_support dingosdk_world_layer_scan dingosdk_json

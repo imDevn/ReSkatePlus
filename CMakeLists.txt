@@ -1,3 +1,10 @@
+set(DINGOSDK_VERSION "1.1.6" CACHE STRING "Supported Server Version")
+
+set(version_major "1" CACHE STRING "Version Major")
+set(version_minor "0" CACHE STRING "Version Minor")
+set(version_patch "4" CACHE STRING "Version Patch")
+set(version_description "Let's skate." CACHE STRING "Description")
+
 cmake_minimum_required(VERSION 3.24)
 project(DingoSDK LANGUAGES CXX C)
 if(WIN32)

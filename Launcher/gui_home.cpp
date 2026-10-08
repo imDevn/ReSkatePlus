@@ -1,10 +1,12 @@
 #include "gui_internal.h"
 
-#include "mod_manager.h"
+#include "mod_manager.h"
+
 #include "problem.h"
 
 #include <cmath>
 #include <format>
+#include <reskate_version.h>
 
 // The main screen: background, name plate, tiles and the STATUS tile.
 namespace dingosdk::launcher_gui::detail {
@@ -258,7 +260,7 @@ void status_tile(const Fonts& fonts, const State& state, ImVec2 position, float 
         facts.push_back({game_ok ? Icon::check : Icon::warning, "skate. build " + build});
         if (update::binary_updates_enabled())
             facts.push_back({state.phase == Phase::update_available ? Icon::warning : Icon::check,
-                "ReSkate " + state.config->runtime.version});
+                "ReSkate+ " + state.config->runtime.version});
     }
 
     const float pad = S(20), gutter = S(28);
@@ -398,7 +400,7 @@ void frame(Launcher& launcher, const Fonts& fonts, HWND window, Ui& ui, ModsPane
     auto* draw = ImGui::GetWindowDrawList();
     if (g_background.id) draw_photo(draw, size, time);
     else draw_background(draw, size, time);
-    std::string version = "Development Build";
+    std::string version = "v1.0.4 [DEV]";
     if (update::binary_updates_enabled() && state.config && !state.config->launcher.version.empty())
         version = "Launcher " + state.config->launcher.version;
     const bool greet = !launcher.settings().offline && !ui.steam_name.empty();
