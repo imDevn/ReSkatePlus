@@ -111,11 +111,7 @@ if(WIN32)
         Engine/Vfs/mod_merge_load_screens.cpp
         Engine/Vfs/mod_music.cpp
         Engine/Vfs/mod_scoring.cpp
-<<<<<<< HEAD
         Engine/Vfs/mod_store_copies.cpp)
-=======
-        Engine/Vfs/mod_store_copies.cpp))
->>>>>>> edc0f0d8137c9a10c7fac2def27edd8d192b2eb8
     target_link_libraries(dingosdk_mods PUBLIC dingosdk_json dingosdk_mod_list PRIVATE dingosdk_game_archives dingosdk_native_db dingosdk_frostbite dingosdk_content_cache shell32 bcrypt)
 
     add_library(dingosdk_custom_scripts STATIC Engine/Scripting/custom_scripts.cpp)
