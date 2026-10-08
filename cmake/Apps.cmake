@@ -175,7 +175,7 @@ if(WIN32)
     target_link_libraries(dingosdk_server PRIVATE dingosdk_launcher_support dingosdk_world_layer_scan dingosdk_json
         dingosdk_lz4 dingosdk_zstd dingosdk_logging dingosdk_miniz dingosdk_word_filter dingosdk_https winhttp bcrypt winmm)
     set_target_properties(dingosdk_server PROPERTIES OUTPUT_NAME "ReSkateServer")
-    dingosdk_version_info(dingosdk_server "ReSkate Dedicated Server" "ReSkateServer.exe" VFT_APP)
+    dingosdk_version_info(dingosdk_server "ReSkate dedicated server" "ReSkateServer.exe" VFT_APP)
 else()
     find_package(OpenSSL REQUIRED)
     target_link_libraries(dingosdk_server PRIVATE dingosdk_launcher_support dingosdk_world_layer_scan dingosdk_json
