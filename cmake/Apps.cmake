@@ -1,8 +1,6 @@
-set(version_file_name "1.0.4.exe" CACHE STRING "Filename")
-set(version_internal_name "ReSkatePlus" CACHE STRING "Internal name")
-set(version_file_type "VFT_APP" CACHE STRING "File version")
-
 if(WIN32)
+    set(FILE_NAME "ReSkatePlusLauncher.exe" CACHE STRING "Filename")
+    set(FILE_TYPE "VFT_APP" CACHE STRING "File type")
     add_executable(dingosdk_launcher WIN32 Launcher/main.cpp Launcher/launch.cpp
         Launcher/gui.cpp Launcher/gui_launcher.cpp Launcher/gui_renderer.cpp Launcher/gui_home.cpp
         Launcher/gui_settings.cpp Launcher/gui_sign_in.cpp Launcher/gui_mods.cpp Launcher/gui_mods_browse.cpp
@@ -135,33 +133,14 @@ endif()
 
 # Off for local builds so a deployed development DLL is never replaced by a release.
 option(DINGOSDK_LAUNCHER_AUTO_UPDATE "Let the launcher replace itself and ReSkatePlus.dll from the launcher config" OFF)
+set(DINGOSDK_RELEASE_REPO "imDevn/ReSkatePlus")
 
-# Updates come from the public GitHub releases of DINGOSDK_RELEASE_REPO: the launcher and
-# server read launcher.json (game depot/manifest and the pinned downloads) from the latest
-# release. No credentials are built in. Build folders configured before releases moved
-# still cache the old private repo, which no public build can read.
-if(DINGOSDK_RELEASE_REPO STREQUAL "imDevn/ReSkatePlus")
-    unset(DINGOSDK_RELEASE_REPO CACHE)
-endif()
-set(DINGOSDK_RELEASE_REPO "imDevn/ReSkatePlus" CACHE STRING "Public GitHub owner/repo whose releases update the launcher")
-set(launcher_release_repo "${DINGOSDK_RELEASE_REPO}")
-if(NOT launcher_release_repo MATCHES "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-    message(FATAL_ERROR "DINGOSDK_RELEASE_REPO must be owner/repo")
-endif()
 if(DINGOSDK_LAUNCHER_AUTO_UPDATE)
     set(launcher_binary_updates true)
 else()
     set(launcher_binary_updates false)
 endif()
 configure_file(cmake/templates/launcher_update_config.h.in generated/launcher_update_config.h @ONLY)
-
-if(WIN32)
-    # ReSkateEmotePacker: a folder of pictures and GIFs -> the chat emote pack (emotes.json +
-    # emotes.png) that ReSkate.dll bakes in from assets/emotes.
-    add_executable(dingosdk_emote_packer EmotePacker/main.cpp)
-    target_link_libraries(dingosdk_emote_packer PRIVATE dingosdk_json windowscodecs ole32)
-    set_target_properties(dingosdk_emote_packer PROPERTIES OUTPUT_NAME "ReSkateEmotePacker")
-endif()
 
 # ReSkate dedicated server: a headless session host. It runs from its own folder
 # next to steam_api64.dll and the Steam client files; no game install needed.
@@ -175,14 +154,3 @@ add_executable(dingosdk_server Server/main.cpp Server/server_host.cpp Server/ser
     Extension/Multiplayer/Remote/playback_buffers.cpp Extension/Multiplayer/Session/password.cpp
     Server/server_activity.cpp Server/server_votes.cpp Extension/Throwdowns/throwdown_wire.cpp)
 target_include_directories(dingosdk_server SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/External/steam_networking")
-if(WIN32)
-    target_link_libraries(dingosdk_server PRIVATE dingosdk_launcher_support dingosdk_world_layer_scan dingosdk_json
-        dingosdk_lz4 dingosdk_zstd dingosdk_logging dingosdk_miniz dingosdk_word_filter dingosdk_https winhttp bcrypt winmm)
-    set_target_properties(dingosdk_server PROPERTIES OUTPUT_NAME "ReSkateServer")
-    dingosdk_version_info(dingosdk_server "ReSkate Dedicated Server" "ReSkateServer.exe" VFT_APP)
-else()
-    find_package(OpenSSL REQUIRED)
-    target_link_libraries(dingosdk_server PRIVATE dingosdk_launcher_support dingosdk_world_layer_scan dingosdk_json
-        dingosdk_lz4 dingosdk_zstd dingosdk_miniz dingosdk_word_filter OpenSSL::Crypto dl pthread)
-    set_target_properties(dingosdk_server PROPERTIES OUTPUT_NAME "ReSkateServer")
-endif()

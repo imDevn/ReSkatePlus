@@ -1,9 +1,21 @@
-set(DINGOSDK_VERSION "1.1.6" CACHE STRING "Supported Server Version")
+set(SDK_VERSION, "0.0.0" CACHE STRING "The version of ReSkate that this is built off")
+set(DLL_VERSION, "0.0.0" CACHE STRING "The current version of this repos main library")
 
-set(version_major "1" CACHE STRING "Version Major")
-set(version_minor "0" CACHE STRING "Version Minor")
-set(version_patch "4" CACHE STRING "Version Patch")
-set(version_description "Let's skate." CACHE STRING "Description")
+set(DESCRIPTION "Let's skate." CACHE STRING "Mod description")
+set(INTERNAL_NAME "ReSkatePlus" CACHE STRING "The internal name of the project")
+
+# END OF USER VARIABLES #
+
+string(REPLACE "." ";" SDK_VERSION_PARTS "${SDK_VERSION}")
+string(REPLACE "." ";" DLL_VERSION_PARTS "${DLL_VERSION}")
+
+list(GET SDK_VERSION_PARTS 0 SDK_VERSION_MAJOR)
+list(GET SDK_VERSION_PARTS 1 SDK_VERSION_MINOR)
+list(GET SDK_VERSION_PARTS 2 SDK_VERSION_PATCH)
+
+list(GET DLL_VERSION_PARTS 0 DLL_VERSION_MAJOR)
+list(GET DLL_VERSION_PARTS 1 DLL_VERSION_MINOR)
+list(GET DLL_VERSION_PARTS 2 DLL_VERSION_PATCH)
 
 cmake_minimum_required(VERSION 3.24)
 project(DingoSDK LANGUAGES CXX C)
@@ -11,7 +23,7 @@ if(WIN32)
     if(NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
         message(FATAL_ERROR "DingoSDK on Windows requires MSVC and the x64 platform.")
     endif()
-else()
+    else()
     if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
         message(FATAL_ERROR "DingoSDK on Linux requires a 64-bit platform.")
     endif()

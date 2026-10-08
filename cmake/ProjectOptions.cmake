@@ -10,9 +10,11 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # Windows version information (Explorer's Details tab) for the shipped binaries. The release
 # script passes its version; local builds say 0.0.0.
 set(DINGOSDK_VERSION "0.0.0" CACHE STRING "Release version stamped into the shipped binaries")
+set(SDK_VERSION, "0.0.0" CACHE STRING "The version of ReSkate that this is built off")
+set(DLL_VERSION, "0.0.0" CACHE STRING "The current version of this repos main library")
 # The same version for code to show (generated/reskate_version.h).
-string(REPLACE "\\" "\\\\" reskate_version_escaped "${DINGOSDK_VERSION}")
-string(REPLACE "\"" "\\\"" reskate_version_escaped "${reskate_version_escaped}")
+string(REPLACE "\\" "\\\\" DLL_VERSION_ESCAPED "${SDK_VERSION}")
+string(REPLACE "\"" "\\\"" DLL_VERSION_ESCAPED "${DLL_VERSION_ESCAPED}")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/templates/reskate_version.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/reskate_version.h" @ONLY)
 function(dingosdk_version_info target description file_name file_type)
