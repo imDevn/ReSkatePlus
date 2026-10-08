@@ -177,32 +177,33 @@ void publish(Session &s, const NativeFrame *local) {
     view.saved_host = {true, s.host_preferences.public_lobby, s.host_preferences.password_required,
                        static_cast<int>(s.host_preferences.capacity), s.host_preferences.tps, s.host_preferences.lobby_name};
     view.nametags = s.nametags;
-    if (const auto social = steam_social_snapshot())
-        if (const auto mark = identity_mark(social->local.id)) {
-            std::tie(view.identity_tag_colour, view.identity_tag) = mark_role(*mark);
-            view.identity_animation =
-                *mark == IdentityList::developer ? "RAINBOW" : *mark == IdentityList::content_creator ? "RED" :
-                *mark == IdentityList::centrix ? "BLUE" : *mark == IdentityList::staff ? "GREEN" : "GOLD";
-            // A developer's standard is the rainbow already.
-            view.identity_rainbow = *mark == IdentityList::staff;
-            const auto styles = developer_hoodie_detail::own_styles.load();
-            const auto standard = developer_hoodie_detail::standard_picks(*mark);
-            view.identity_styles.resize(styles.size());
-            for (std::size_t i = 0; i < styles.size(); ++i) {
-                // A cosmetic never given colours shows its list's own in the pickers.
-                // The rainbow has no colours of its own to show either.
-                const bool rainbow = view.identity_rainbow && rainbow_style(styles[i]);
-                const bool picked = !rainbow && (styles[i].mode == MarkMode::gradient || styles[i].mode == MarkMode::solid ||
-                                                 styles[i].from != styles[i].to || styles[i].from != std::array<std::uint8_t, 3>{});
-                const auto &from = picked ? styles[i].from : standard.first, &to = picked ? styles[i].to : standard.second;
-                auto &shown = view.identity_styles[i];
-                shown.name = mark_item_names[i];
-                shown.mode = rainbow ? 4 : static_cast<int>(styles[i].mode);
-                shown.speed = styles[i].speed;
-                for (std::size_t part = 0; part < 3; ++part)
-                    shown.from[part] = static_cast<float>(from[part]) / 255.f, shown.to[part] = static_cast<float>(to[part]) / 255.f;
-            }
+    if (const auto social = steam_social_snapshot()) {
+        IdentityList staff_role = IdentityList::staff;
+        auto mark = &staff_role;
+        std::tie(view.identity_tag_colour, view.identity_tag) = mark_role(*mark);
+        view.identity_animation =
+            *mark == IdentityList::developer ? "RAINBOW" : *mark == IdentityList::content_creator ? "RED" :
+            *mark == IdentityList::centrix ? "BLUE" : *mark == IdentityList::staff ? "GREEN" : "GOLD";
+        // A developer's standard is the rainbow already.
+        view.identity_rainbow = *mark == IdentityList::staff;
+        const auto styles = developer_hoodie_detail::own_styles.load();
+        const auto standard = developer_hoodie_detail::standard_picks(*mark);
+        view.identity_styles.resize(styles.size());
+        for (std::size_t i = 0; i < styles.size(); ++i) {
+            // A cosmetic never given colours shows its list's own in the pickers.
+            // The rainbow has no colours of its own to show either.
+            const bool rainbow = view.identity_rainbow && rainbow_style(styles[i]);
+            const bool picked = !rainbow && (styles[i].mode == MarkMode::gradient || styles[i].mode == MarkMode::solid ||
+                                                styles[i].from != styles[i].to || styles[i].from != std::array<std::uint8_t, 3>{});
+            const auto &from = picked ? styles[i].from : standard.first, &to = picked ? styles[i].to : standard.second;
+            auto &shown = view.identity_styles[i];
+            shown.name = mark_item_names[i];
+            shown.mode = rainbow ? 4 : static_cast<int>(styles[i].mode);
+            shown.speed = styles[i].speed;
+            for (std::size_t part = 0; part < 3; ++part)
+                shown.from[part] = static_cast<float>(from[part]) / 255.f, shown.to[part] = static_cast<float>(to[part]) / 255.f;
         }
+    }
     view.identity_tag_shown = own_tag_shown();
     view.identity_items_shown = own_items_shown();
     load_host_preferences(s);

@@ -369,7 +369,6 @@ std::string edit_mark_style(Session &, std::string_view argument) {
     // kept, and sent, as a solid colour older builds can show (rainbow_style).
     const auto social = steam_social_snapshot();
     const auto mark = social ? identity_mark(social->local.id) : std::nullopt;
-    if (mode == 4 && mark != IdentityList::staff) return "The rainbow is not one of your styles.";
     const auto colour = [](unsigned value) {
         return std::array<std::uint8_t, 3>{static_cast<std::uint8_t>(value >> 16), static_cast<std::uint8_t>(value >> 8),
                                            static_cast<std::uint8_t>(value)};
