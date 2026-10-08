@@ -12,7 +12,7 @@ else()
 endif()
 
 include(cmake/ProjectOptions.cmake)
-include(cmake/Dependencies.cmake)cd ..
+include(cmake/Dependencies.cmake)
 include(cmake/CustomScriptData.cmake)
 include(cmake/Core.cmake)
 if(WIN32)
