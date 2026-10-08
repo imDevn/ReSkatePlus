@@ -1,5 +1,5 @@
-set(SDK_VERSION, "0.0.0" CACHE STRING "The version of ReSkate that this is built off")
-set(DLL_VERSION, "0.0.0" CACHE STRING "The current version of this repos main library")
+set(SDK_VERSION, "1.1.8" CACHE STRING "The version of ReSkate that this is built off")
+set(DLL_VERSION, "0.0.5" CACHE STRING "The current version of this repos main library")
 
 set(DESCRIPTION "Let's skate." CACHE STRING "Mod description")
 set(INTERNAL_NAME "ReSkatePlus" CACHE STRING "The internal name of the project")
