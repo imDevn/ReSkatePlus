@@ -132,7 +132,7 @@ if(WIN32)
 endif()
 
 # Off for local builds so a deployed development DLL is never replaced by a release.
-option(DINGOSDK_LAUNCHER_AUTO_UPDATE "Let the launcher replace itself and ReSkatePlus.dll from the launcher config" OFF)
+option(DINGOSDK_LAUNCHER_AUTO_UPDATE "Let the launcher replace itself and ReSkatePlus.dll from the launcher config" ON)
 set(DINGOSDK_RELEASE_REPO "imDevn/ReSkatePlus")
 
 if(DINGOSDK_LAUNCHER_AUTO_UPDATE)
