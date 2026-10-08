@@ -640,7 +640,7 @@ bool queue_command(std::string_view action, std::string_view argument, std::stri
 }
 std::string command(std::string_view action, std::string_view argument, std::string_view password) {
     if (launcher::offline_mode() && !own_mark_command(action))
-        return "Multiplayer is unavailable in offline mode. Start Steam and relaunch ReSkate.";
+        return "Multiplayer is unavailable in offline mode. Start Steam and relaunch ReSkate+.";
     const bool configured_host = action == "host-config";
     if (configured_host) action = "host";
     PrivateRequest input;

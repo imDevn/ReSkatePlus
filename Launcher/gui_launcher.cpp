@@ -325,7 +325,7 @@ void Launcher::run_check() {
             return;
         }
         if (!launcher_app::config_matches_build(*config)) {
-            fail("This launcher is out of date. Download the latest ReSkate release.");
+            fail("This launcher is out of date. Download the latest ReSkate+ release.");
             return;
         }
         if (installed) set(Phase::game_outdated, "Steam updated Skate",
@@ -339,8 +339,7 @@ void Launcher::run_check() {
         fail("ReSkatePlus.dll is missing from the game folder.");
         return;
     }
-    set(Phase::ready, "Ready to skate", !config ? "Offline: update check skipped."
-        : !settings_.updates ? (newer ? "ReSkate updates are off; keeping your ReSkate+ files." : "ReSkate+ updates are off.")
+    set(Phase::ready, "Ready to skate", !settings_.updates ? (newer ? "ReSkate+ updates are off; keeping your ReSkate+ files." : "ReSkate+ updates are off.")
         : "Up to date.");
 }
 
