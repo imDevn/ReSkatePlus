@@ -44,17 +44,6 @@ std::uint64_t nonce() {
 #endif
     return value;
 }
-constexpr std::string_view help_text =
-    "status | net [player] | players | say <text> | msg <player> <text> | msg-party <player> <text> | msg-admins <text> | kick <player> | ban <player or SteamID64> [name] | unban <SteamID64> | bans\n"
-    "map <name, e.g. San Vansterdam> | maps | name <text> | password <text|off> | welcome <text|off> | listed on|off\n"
-    "voice on|off | voice-range <50-1000> | distances <full> <half> <half-return> <low> | crowd <n>|off | rate <KB/s> | bone-scale <1-8>|off\n"
-    "placement everyone|admins|nobody | objects <number>|off | clear-objects | noclip on|off | nobail on|off | boosts on|off | tuning on|off\n"
-    "tpall [player] | tphere <player> | votes [map|kick|tod on|off|<percent>] | vote-cancel\n"
-    "map-pool [add|remove <map>|clear] | rotation [<minutes>|off]\n"
-    "park <lot> <layout> | park random | layer-sync on|off | layer <key> default|on|off | tod <time|default>\n"
-    "activity-log on|off | announce-throwdowns on|off | parties [on|off] | party-size <2-8> | speed-check off|warn|kick\n"
-    "score-check [off|warn|kick] | score-allow [<fingerprint>|remove <fingerprint>]\n"
-    "reserved [slots <n> | add|remove <SteamID64>] | admin add|remove <SteamID64> | admins | update | quit";
 } // namespace
 
 Host::Host(ServerConfig &config, SteamTransport &transport, Log log)
@@ -378,7 +367,8 @@ void Host::broadcast(const Packet &packet, bool reliable, bool fresh, std::uint6
     outgoing.reserve(guests_.size());
     std::shared_ptr<const std::vector<AudioSample>> sound; // a skater's samples, shared by everyone sent them
     const bool gameplay = packet.kind == PacketKind::pose || packet.kind == PacketKind::audio ||
-                          packet.kind == PacketKind::voice || packet.kind == PacketKind::cosmetics;
+                          packet.kind == PacketKind::voice || packet.kind == PacketKind::cosmetics ||
+                          packet.kind == PacketKind::effects;
     for (auto &[id, guest] : guests_) {
         auto &p = *guest;
         if (!p.handshaken || id == except || (gameplay && !p.world_ready)) continue;
@@ -398,6 +388,15 @@ void Host::broadcast(const Packet &packet, bool reliable, bool fresh, std::uint6
         if (!p.unmet.empty() && (packet.kind == PacketKind::pose || packet.kind == PacketKind::audio || packet.kind == PacketKind::cosmetics) &&
             p.unmet.contains(packet.source))
             continue;
+        // A skater's effects go to those near enough to see them: within 150 m.
+        if (packet.kind == PacketKind::effects && source && source->latest_root && p.latest_root) {
+            float distance{};
+            for (unsigned i = 0; i < 3; ++i) {
+                const auto d = p.latest_root->position[i] - source->latest_root->position[i];
+                distance += d * d;
+            }
+            if (distance > 150.f * 150.f) continue;
+        }
         // A skater's sound goes to those who would hear it: within the full pose rate's reach,
         // and in a crowd only from the nearest (the same players sent at the full rate).
         // A game stops a sound it hears nothing more of after a second.
@@ -579,9 +578,16 @@ void Host::send_roster() {
     auto p = packet(PacketKind::roster, now_);
     p.voice_policy = voice_policy_;
     p.voice_range = config_.voice_range;
+    p.chat_badge = parse_colour(config_.chat_color).value_or(multiplayer::default_server_chat_badge);
+    p.chat_text = parse_colour(config_.chat_text_color).value_or(multiplayer::default_server_chat_text);
+    p.vote = vote_shown_;
+    if (vote_ && vote_shown_.id == vote_->id && vote_->ends > now_)
+        p.vote.seconds = static_cast<std::uint16_t>(std::min<std::uint64_t>((vote_->ends - now_ + 999999) / 1000000, 65535));
     p.distances = config_.distances;
     p.object_placement = config_.object_placement;
     p.object_limit = config_.object_limit;
+    p.object_scaling = config_.object_scaling;
+    p.sync_effects = config_.sync_effects;
     p.guest_noclip = config_.noclip;
     p.guest_no_bail = config_.no_bail;
     p.guest_boosts = config_.boosts;
@@ -748,6 +754,8 @@ bool Host::accept_data(Guest &source, const Packet &p) {
         if (accepted) source.cosmetic_packet = encode_wire(p);
     } else if (p.kind == PacketKind::audio)
         accepted = source.sound_budget.accept(now_, p.audio.size()) && source.audio.push(p, now_);
+    else if (p.kind == PacketKind::effects)
+        accepted = config_.sync_effects && source.effect_budget.accept(now_);
     else if (p.kind == PacketKind::pose)
         accepted = source.poses.push_validated(p, now_);
     // The server never plays anything back: keep only what ordering needs.
@@ -768,6 +776,7 @@ bool Host::accept_data(Guest &source, const Packet &p) {
             if (!source.moved_at || moved > 0.05f * 0.05f || std::abs(facing) < 0.9995f) {
                 source.still_at = root;
                 source.moved_at = now_;
+                active(source);
             }
         }
         return check_speed(source, p.time_us); // last: a speed-check kick frees `source`
@@ -895,7 +904,10 @@ void Host::receive(std::uint64_t peer, std::span<const std::uint8_t> bytes, std:
                 log_("[map] " + guest_name(*link) + " finished loading (" + std::to_string((now_ - since) / 1000000) + " s)");
         link->world_ready = p.world_ready;
         if (p.world_ready) link->travel_since = link->loading_since = 0;
-        if (arrived) meet_later(*link);
+        if (arrived) {
+            meet_later(*link);
+            active(*link); // the time away starts once they are in
+        }
         return;
     }
     case PacketKind::map_request: {
@@ -1012,6 +1024,7 @@ void Host::receive(std::uint64_t peer, std::span<const std::uint8_t> bytes, std:
     // A listen host's; the server's physics are the game's own.
     if (p.kind == PacketKind::physics_tuning || p.kind == PacketKind::physics_extras) return;
     if (p.kind == PacketKind::chat) {
+        active(*link);
         if (!routed_source(p, link->member, peer, true, id_) ||
             link->chat_rate.accept(now_, p.text, 1) != ChatRate::Verdict::accepted)
             return;
@@ -1067,8 +1080,10 @@ void Host::receive(std::uint64_t peer, std::span<const std::uint8_t> bytes, std:
     if (!routed_source(p, link->member, peer, true, id_)) return;
     if (p.kind == PacketKind::away) return drop(peer, "A player ended their session.");
     if (p.kind == PacketKind::objects) {
+        const auto before = link->objects.revision();
         if (link->objects.receive(p.objects) == ObjectState::Result::invalid)
             return drop(peer, "Invalid shared object revision or layout.");
+        if (link->objects.revision() != before) active(*link);
         link->last_packet = now_;
         return;
     }
@@ -1079,6 +1094,7 @@ void Host::receive(std::uint64_t peer, std::span<const std::uint8_t> bytes, std:
         link->received_voice = true;
         link->voice_sequence = p.sequence;
         link->last_packet = now_;
+        active(*link);
         broadcast(p, false, true, p.source);
         return;
     }
@@ -1105,6 +1121,30 @@ void Host::receive_cosmetics() {
     }
 }
 
+// Players who have been away longer than the server allows ("afk_kick_minutes") are removed,
+// with a warning a minute before. Away is doing nothing a player at their game does: not
+// moving, speaking, typing in chat or changing their objects. Admins stay, and so does anyone
+// whose game is still loading the map.
+void Host::remove_away() {
+    if (!config_.afk_kick) return;
+    const auto limit = static_cast<std::uint64_t>(config_.afk_kick) * 60000000;
+    std::vector<std::uint64_t> away;
+    for (auto &[id, guest] : guests_) {
+        auto &g = *guest;
+        if (!g.handshaken || !g.world_ready || !g.active_at || is_admin(id)) continue;
+        const auto idle = now_ - g.active_at;
+        if (idle >= limit) away.push_back(id);
+        else if (!g.away_warned && limit > 60000000 && idle >= limit - 60000000) {
+            g.away_warned = true;
+            reply(g, "You have been away a while: move or say something within a minute to stay on the server.");
+        }
+    }
+    for (const auto id : away) {
+        if (const auto *g = find(id)) log_("[afk] " + guest_name(*g) + " was removed after " + std::to_string(config_.afk_kick) + " min away.");
+        drop(id, "You were removed from the server for being away too long. You can join again.");
+    }
+}
+
 // ---- Objects ---------------------------------------------------------------------------------
 void Host::sync_objects() {
     if (now_ < next_object_update_) return;
@@ -1119,6 +1159,10 @@ void Host::sync_objects() {
             std::erase_if(layout, [&](const auto &object) { return guest->cleared.contains(object.id); });
             // No more of a player's objects than the server allows each of them; admins are not limited.
             if (!is_admin(id)) layout = limited_layout(std::move(layout), guest->shared.objects(), config_.object_limit);
+            // With scaling off, a player's objects reach everyone else at their own size, whatever
+            // that player's game made of them.
+            if (!config_.object_scaling && !is_admin(id))
+                for (auto &object : layout) object.scale = 1.f;
             if (config_.activity_log) activity_.objects(id, guest->shared.layout(), layout);
             guest->shared.replace(layout);
             guest->shared_from = guest->objects.revision();
@@ -1519,7 +1563,13 @@ void Host::tick(std::uint64_t now) {
     activity_.tick(now_);
     if (std::exchange(vote_recount_, false)) check_vote(false);
     if (vote_ && now_ >= vote_->ends) check_vote(true);
+    // A finished vote has been shown long enough.
+    if (!vote_ && vote_shown_.id && now_ >= vote_shown_until_) {
+        vote_shown_ = {};
+        roster_dirty_ = true;
+    }
     tick_rotation();
+    remove_away();
     std::erase_if(vote_cooldowns_, [&](const auto &entry) { return now_ >= entry.second; });
     join_backoff_.prune(now_);
 }

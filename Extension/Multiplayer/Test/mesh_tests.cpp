@@ -140,7 +140,7 @@ bool SteamTransport::host(unsigned capacity) {
     impl_->state.hosting = true;
     return true;
 }
-bool SteamTransport::join(std::uint64_t id) {
+bool SteamTransport::join(std::uint64_t id, std::uint32_t, std::uint16_t) {
     if (SimulatedNetwork::slow_join) Sleep(2);
     stop();
     open();
@@ -240,6 +240,7 @@ std::vector<TransportMessage> SteamTransport::receive() {
 const TransportStatus &SteamTransport::status() const { return impl_->state; }
 std::string SteamTransport::name(std::uint64_t id) { return "Player " + std::to_string(id); }
 bool SteamTransport::socket_test() { return true; }
+std::vector<std::string> SteamTransport::take_direct_notes() { return {}; }
 
 // No native/game/UI calls in this harness.
 NativeFrame tick_frame;
@@ -277,6 +278,12 @@ void set_native_compass_enabled(bool) noexcept {}
 void prepare_native_indicators(std::uintptr_t) noexcept {}
 void prepare_player_ui(std::uintptr_t) noexcept {}
 void prepare_remote_audio(std::uintptr_t) noexcept {}
+void prepare_effects(std::uintptr_t) noexcept {}
+std::vector<Impact> drain_impacts() { return {}; }
+void play_impact(const Impact &) noexcept {}
+void note_remote_outfit(std::uint64_t) noexcept {}
+void tick_remote_effects(std::uint64_t) noexcept {}
+void reset_effects() noexcept {}
 bool install_entity_hooks(std::uintptr_t, std::string &) noexcept { return true; }
 void publish_custom_nametags(std::uintptr_t, std::vector<NametagPlayer>, std::optional<std::array<float, 3>>, bool, bool, float, float, bool) noexcept {}
 void set_custom_nametags_enabled(bool) noexcept {}

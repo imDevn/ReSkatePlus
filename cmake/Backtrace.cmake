@@ -1,3 +1,27 @@
+# A submission token grants report submission only; never use an API/admin token.
+set(backtrace_default_url "")
+if(NOT "$ENV{RESKATE_BACKTRACE_URL}" STREQUAL "")
+    set(backtrace_default_url "$ENV{RESKATE_BACKTRACE_URL}")
+endif()
+set(DINGOSDK_BACKTRACE_URL "${backtrace_default_url}" CACHE STRING "Backtrace HTTPS minidump submission URL (empty disables uploads)")
+if(DINGOSDK_BACKTRACE_URL AND NOT DINGOSDK_BACKTRACE_URL MATCHES "^https://[^ \r\n\t]+$")
+    message(FATAL_ERROR "DINGOSDK_BACKTRACE_URL must be an HTTPS minidump submission URL")
+endif()
+set(backtrace_url_escaped "${DINGOSDK_BACKTRACE_URL}")
+string(REPLACE "\\" "\\\\" backtrace_url_escaped "${backtrace_url_escaped}")
+string(REPLACE "\"" "\\\"" backtrace_url_escaped "${backtrace_url_escaped}")
+find_package(Git QUIET)
+set(backtrace_version "unknown")
+if(GIT_FOUND)
+    execute_process(COMMAND "${GIT_EXECUTABLE}" describe --always --dirty --abbrev=12
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}" OUTPUT_VARIABLE backtrace_revision
+        OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(backtrace_revision)
+        set(backtrace_version "${backtrace_revision}")
+    endif()
+endif()
+configure_file(cmake/templates/backtrace_config.h.in generated/backtrace_config.h @ONLY)
+
 add_library(dingosdk_backtrace_client STATIC Engine/Core/Debug/client.cpp)
 add_library(dingosdk_backtrace_upload STATIC Engine/Core/Debug/upload.cpp
     Engine/Core/Debug/native_dump.cpp Engine/Core/Debug/multipart.cpp)

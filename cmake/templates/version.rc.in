@@ -1,26 +1,26 @@
 #include <winver.h>
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,4,0
- PRODUCTVERSION 1,1,6,0
+ FILEVERSION @version_major@,@version_minor@,@version_patch@,0
+ PRODUCTVERSION @version_major@,@version_minor@,@version_patch@,0
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
  FILEFLAGS 0x0L
  FILEOS VOS_NT_WINDOWS32
- FILETYPE VFT_APP
+ FILETYPE @version_file_type@
  FILESUBTYPE VFT2_UNKNOWN
 BEGIN
     BLOCK "StringFileInfo"
     BEGIN
         BLOCK "040904B0"
         BEGIN
-            VALUE "CompanyName", "Half-Squared"
-            VALUE "FileDescription", "Let's skate."
+            VALUE "CompanyName", "Half-Squared Inc."
+            VALUE "FileDescription", "@version_description@"
             VALUE "FileVersion", "@DINGOSDK_VERSION@"
             VALUE "InternalName", "@version_internal_name@"
             VALUE "LegalCopyright", "Copyright (C) 2026 the ReSkate+ contributors. Licensed under GPL-3.0."
             VALUE "OriginalFilename", "@version_file_name@"
             VALUE "ProductName", "ReSkate+"
-            VALUE "ProductVersion", "1.1.6.0"
+            VALUE "ProductVersion", "@DINGOSDK_VERSION@"
         END
     END
     BLOCK "VarFileInfo"

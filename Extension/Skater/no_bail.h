@@ -4,9 +4,10 @@
 namespace dingosdk {
 bool start_no_bail(std::uintptr_t image_base) noexcept;
 bool no_bail_available() noexcept;
-// Publish from the validated local client tick, after publish_local_skater: protection
-// applies to that skater. Manual protection expires if ticks stop arriving.
-bool update_no_bail(bool manual, bool flying, std::uint64_t flight_expires) noexcept;
+// Publish from the validated local client tick. Returns owner availability even
+// when both controls are off. Manual protection expires if ticks stop arriving.
+bool update_no_bail(std::uintptr_t client, std::uintptr_t entity, bool manual,
+    bool flying, std::uint64_t flight_expires) noexcept;
 void clear_no_bail() noexcept;
 // S.K.A.T.E.: while `locked`, the local skater cannot get back on the board once it is off
 // (its mount request is dropped). Publish from the client tick; it expires if ticks stop.

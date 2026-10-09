@@ -125,131 +125,128 @@ namespace dingosdk::mods {
                 return std::nullopt;
                 };
 
-            // Where every mod's archives go. The launch's merge places the archives
-            // of every installed mod, disabled ones too, and records it: a merge
-            // while the game runs must not move an archive the game may hold open,
-            // so it reuses that record, and a mod disabled at launch can then be
-            // enabled without a restart.
-            const auto placementsPath = output / placements_file;
-            PlacementRecord record;
-            if (options.live) record = read_placements(placementsPath);
-            std::vector<const Mod*> placedMods = mods;
-            for (const auto& mod : catalog.inactive) placedMods.push_back(&mod);
-            for (const auto* mod : placedMods) {
-                const bool active = std::find(mods.begin(), mods.end(), mod) != mods.end();
-                if (options.live && !active && !record.mods.contains(mod->name)) continue; // installed since launch, still off
-                const auto files = active ? modFiles[mod] : scan(mod->directory);
-                if (!active) modFiles[mod] = files; // the material grid plan reads a disabled map's root edits too
-                if (active) advance("Linking " + mod->name);
-                for (const auto& relative : files.tocs) {
-                    // A map registers itself in globals (its level description and
-                    // the root's on-demand entry), which the game reads only at
-                    // launch. A disabled map's globals go in too, so enabling it
-                    // later only needs what is read at each load; while its level
-                    // and root TOCs are left out it cannot load.
-                    if (!active && !(mod->provides_levels &&
-                        (lower(relative) == launch_level_registry || lower(relative) == root_level)))
-                        continue;
-                    auto& list = providers[lower(relative)];
-                    if (list.empty()) superbundles.push_back(relative);
-                    list.push_back(mod);
-                }
-                if (options.live) {
-                    if (const auto found = record.mods.find(mod->name); found != record.mods.end()) {
-                        placements[mod] = found->second;
-                        report.archives += found->second.at.size();
-                        continue;
-                    }
-                    // Installed since launch: no free archive index was declared for
-                    // it then, so its archives go on the end of the patch's own
-                    // archive 1 in each package (the game reads appended data from an
-                    // archive it already has open) and are addressed by byte offset.
-                    // The record keeps the spots, so a later merge reuses them.
-                    for (const auto& relative : files.archives) {
-                        const auto path = fs::path(relative);
-                        const auto number = vfs::GameArchives::archive_index(path.stem().string());
-                        if (!number) throw std::runtime_error("Unexpected archive name: " + relative);
-                        auto directory = lower(path.parent_path().generic_string());
-                        if (directory.starts_with("win32/")) directory.erase(0, 6);
-                        const auto target = output / path.parent_path() / archive_file(manifestArchive);
-                        if (!fs::exists(target, error))
-                            throw std::runtime_error(mod->name + " needs a restart: the patch has no archive 1 in " + directory);
-                        // Checked before anything is appended: past 4 GB the mod's
-                        // payloads could not be addressed, and the next launch
-                        // gives it an archive of its own anyway.
-                        const auto held = fs::file_size(target, error);
-                        const auto added = error ? std::uintmax_t{} : fs::file_size(mod->directory / path, error);
-                        if (error || held + added > std::numeric_limits<std::uint32_t>::max())
-                            throw std::runtime_error(mod->name + " needs a restart: the patch's archive 1 in " + directory +
-                                " has no room left for it while the game runs");
-                        ArchivePlacement::Spot spot{ manifestArchive, append_file(mod->directory / path, target) };
-                        placements[mod].at.emplace(std::pair{ directory, *number }, spot);
-                        report.notes.push_back(mod->name + ": " + directory + "/cas_" + std::to_string(*number) +
-                            " appended to cas_" + std::to_string(manifestArchive) + " at byte " +
-                            std::to_string(spot.offset) + " (added while the game runs)");
-                        ++report.archives;
-                    }
-                    record.mods[mod->name] = placements[mod];
+        // Where every mod's archives go. The launch's merge places the archives
+        // of every installed mod, disabled ones too, and records it: a merge
+        // while the game runs must not move an archive the game may hold open,
+        // so it reuses that record, and a mod disabled at launch can then be
+        // enabled without a restart.
+        const auto placementsPath = output / placements_file;
+        PlacementRecord record;
+        if (options.live) record = read_placements(placementsPath);
+        std::vector<const Mod*> placedMods = mods;
+        for (const auto& mod : catalog.inactive) placedMods.push_back(&mod);
+        for (const auto* mod : placedMods) {
+            const bool active = std::find(mods.begin(), mods.end(), mod) != mods.end();
+            if (options.live && !active && !record.mods.contains(mod->name)) continue; // installed since launch, still off
+            const auto files = active ? modFiles[mod] : scan(mod->directory);
+            if (!active) modFiles[mod] = files; // the material grid plan reads a disabled map's root edits too
+            if (active) advance("Linking " + mod->name);
+            for (const auto& relative : files.tocs) {
+                // A map registers itself in globals (its level description and
+                // the root's on-demand entry), which the game reads only at
+                // launch. A disabled map's globals go in too, so enabling it
+                // later only needs what is read at each load; while its level
+                // and root TOCs are left out it cannot load.
+                if (!active && !(mod->provides_levels &&
+                                 (lower(relative) == launch_level_registry || lower(relative) == root_level)))
+                    continue;
+                auto& list = providers[lower(relative)];
+                if (list.empty()) superbundles.push_back(relative);
+                list.push_back(mod);
+            }
+            if (options.live) {
+                if (const auto found = record.mods.find(mod->name); found != record.mods.end()) {
+                    placements[mod] = found->second;
+                    report.archives += found->second.at.size();
                     continue;
                 }
+                // Installed since launch: no free archive index was declared for
+                // it then, so its archives go on the end of the patch's own
+                // archive 1 in each package (the game reads appended data from an
+                // archive it already has open) and are addressed by byte offset.
+                // The record keeps the spots, so a later merge reuses them.
                 for (const auto& relative : files.archives) {
                     const auto path = fs::path(relative);
-                    const auto stem = path.stem().string();
-                    const auto digits = stem.find_last_not_of("0123456789");
-                    if (digits == std::string::npos || digits + 1 >= stem.size())
-                        throw std::runtime_error("Unexpected archive name: " + relative);
-                    const auto number = static_cast<std::uint16_t>(std::stoul(stem.substr(digits + 1)));
-                    // CasStore keys its directories relative to Win32, so the mod's
-                    // own Win32/ prefix comes off before the two are matched up.
+                    const auto number = vfs::GameArchives::archive_index(path.stem().string());
+                    if (!number) throw std::runtime_error("Unexpected archive name: " + relative);
                     auto directory = lower(path.parent_path().generic_string());
                     if (directory.starts_with("win32/")) directory.erase(0, 6);
-                    // The first mod to ship an index keeps it. A later one takes a
-                    // free index of its own, so the file is hard linked rather
-                    // than copied and no two mods share an archive's 4 GB of
-                    // addressable bytes; only with every index taken is it
-                    // concatenated onto the archive it collides with.
-                    auto& claimed = claimedArchives[directory];
-                    ArchivePlacement::Spot spot{ number, 0 };
-                    // Archive 1 stays the patch's own file, never a link to a mod's:
-                    // a live apply appends manifests and new mods to it while the
-                    // game has it open, and a linked file cannot be swapped for a
-                    // private copy then (Windows keeps it in use).
-                    claimed.insert(manifestArchive);
-                    if (number == manifestArchive) {
-                        if (const auto free = claim(directory); free) {
-                            spot.archive = *free;
-                            link_or_copy(mod->directory / path, output / path.parent_path() / archive_file(*free));
-                        }
-                        else {
-                            spot.offset = append_file(mod->directory / path, output / path);
-                        }
-                    }
-                    else if (claimed.insert(number).second) {
-                        link_or_copy(mod->directory / path, output / path);
-                    }
-                    else if (const auto free = claim(directory); free) {
-                        spot.archive = *free;
-                        link_or_copy(mod->directory / path,
-                            output / path.parent_path() / archive_file(*free));
-                    }
-                    else {
-                        spot.offset = append_file(mod->directory / path, output / path);
-                    }
-                    placements[mod].at.emplace(std::pair{ directory, number }, spot);
-                    // A disabled mod's archives are read by no TOC yet, so nothing
-                    // else declares them; the engine only accepts archives
-                    // declared at launch.
-                    if (!active)
-                        for (const auto chunk : store.chunks_in(directory)) used.emplace(chunk, spot.archive);
-                    if (spot.archive != number || spot.offset)
-                        report.notes.push_back(mod->name + ": " + directory + "/cas_" +
-                            std::to_string(number) + " placed as cas_" + std::to_string(spot.archive) +
-                            (spot.offset ? " at byte " + std::to_string(spot.offset) : std::string{}) +
-                            (active ? "" : " (disabled, ready to enable)"));
+                    const auto target = output / path.parent_path() / archive_file(manifestArchive);
+                    if (!fs::exists(target, error))
+                        throw std::runtime_error(mod->name + " needs a restart: the patch has no archive 1 in " + directory);
+                    // Checked before anything is appended: past 4 GB the mod's
+                    // payloads could not be addressed, and the next launch
+                    // gives it an archive of its own anyway.
+                    const auto held = fs::file_size(target, error);
+                    const auto added = error ? std::uintmax_t{} : fs::file_size(mod->directory / path, error);
+                    if (error || held + added > std::numeric_limits<std::uint32_t>::max())
+                        throw std::runtime_error(mod->name + " needs a restart: the patch's archive 1 in " + directory +
+                                                 " has no room left for it while the game runs");
+                    ArchivePlacement::Spot spot{manifestArchive, append_file(mod->directory / path, target)};
+                    placements[mod].at.emplace(std::pair{directory, *number}, spot);
+                    report.notes.push_back(mod->name + ": " + directory + "/cas_" + std::to_string(*number) +
+                                           " appended to cas_" + std::to_string(manifestArchive) + " at byte " +
+                                           std::to_string(spot.offset) + " (added while the game runs)");
                     ++report.archives;
                 }
                 record.mods[mod->name] = placements[mod];
+                continue;
             }
+            for (const auto& relative : files.archives) {
+                const auto path = fs::path(relative);
+                const auto index = vfs::GameArchives::archive_index(path.stem().string());
+                if (!index) { // the mod's problem: the catalog merges again without it
+                    report.problems[mod->name].push_back("Unexpected archive name: " + relative);
+                    continue;
+                }
+                const auto number = *index;
+                // CasStore keys its directories relative to Win32, so the mod's
+                // own Win32/ prefix comes off before the two are matched up.
+                auto directory = lower(path.parent_path().generic_string());
+                if (directory.starts_with("win32/")) directory.erase(0, 6);
+                // The first mod to ship an index keeps it. A later one takes a
+                // free index of its own, so the file is hard linked rather
+                // than copied and no two mods share an archive's 4 GB of
+                // addressable bytes; only with every index taken is it
+                // concatenated onto the archive it collides with.
+                auto& claimed = claimedArchives[directory];
+                ArchivePlacement::Spot spot{number, 0};
+                // Archive 1 stays the patch's own file, never a link to a mod's:
+                // a live apply appends manifests and new mods to it while the
+                // game has it open, and a linked file cannot be swapped for a
+                // private copy then (Windows keeps it in use).
+                claimed.insert(manifestArchive);
+                if (number == manifestArchive) {
+                    if (const auto free = claim(directory); free) {
+                        spot.archive = *free;
+                        link_or_copy(mod->directory / path, output / path.parent_path() / archive_file(*free));
+                    } else {
+                        spot.offset = append_file(mod->directory / path, output / path);
+                    }
+                } else if (claimed.insert(number).second) {
+                    link_or_copy(mod->directory / path, output / path);
+                } else if (const auto free = claim(directory); free) {
+                    spot.archive = *free;
+                    link_or_copy(mod->directory / path,
+                                 output / path.parent_path() / archive_file(*free));
+                } else {
+                    spot.offset = append_file(mod->directory / path, output / path);
+                }
+                placements[mod].at.emplace(std::pair{directory, number}, spot);
+                // A disabled mod's archives are read by no TOC yet, so nothing
+                // else declares them; the engine only accepts archives
+                // declared at launch.
+                if (!active)
+                    for (const auto chunk : store.chunks_in(directory)) used.emplace(chunk, spot.archive);
+                if (spot.archive != number || spot.offset)
+                    report.notes.push_back(mod->name + ": " + directory + "/cas_" +
+                        std::to_string(number) + " placed as cas_" + std::to_string(spot.archive) +
+                        (spot.offset ? " at byte " + std::to_string(spot.offset) : std::string{}) +
+                        (active ? "" : " (disabled, ready to enable)"));
+                ++report.archives;
+            }
+            record.mods[mod->name] = placements[mod];
+        }
 
             for (const auto relative : launch_superbundles)
                 if (providers.try_emplace(lower(relative)).second) superbundles.emplace_back(relative);
@@ -313,29 +310,34 @@ namespace dingosdk::mods {
                 const auto& shippedBy = providers.at(lower(relative));
                 advance("Merging " + fs::path(relative).stem().string() +
                     (shippedBy.empty() ? std::string(" (the game's own)")
-                        : shippedBy.size() > 1 ? " from " + std::to_string(shippedBy.size()) + " mods"
-                        : " from " + shippedBy.front()->name));
-                std::vector<Source> sources;
-                for (const auto* mod : shippedBy) {
-                    Source source;
-                    source.root = mod->directory;
-                    source.placement = &placements[mod];
+                     : shippedBy.size() > 1 ? " from " + std::to_string(shippedBy.size()) + " mods"
+                                            : " from " + shippedBy.front()->name));
+            std::vector<Source> sources;
+            for (const auto* mod : shippedBy) {
+                Source source;
+                source.root = mod->directory;
+                source.placement = &placements[mod];
+                try {
                     source.toc = fb::read_toc(read_file(mod->directory / fs::path(relative)));
-                    sources.push_back(std::move(source));
+                } catch (const std::exception& failure) { // the mod's problem: the catalog merges again without it
+                    report.problems[mod->name].push_back(relative + " could not be read: " + failure.what());
+                    continue;
                 }
-                auto merged = combine(baseRoot / fs::path(relative), baseRoot, sources, report,
-                    relative, used, store, manifestArchive, gameRoot, grid, overrides);
-                auto bytes = fb::write_patch_toc(merged.bundles, merged.chunks, merged.flags);
-                // Read the result back before publishing it: a TOC whose perfect
-                // hash does not resolve would take the game down at load time.
-                const auto check = fb::read_toc(bytes);
-                fb::verify_toc(check);
-                if (check.bundles.size() != merged.bundles.size() ||
-                    check.chunks.size() != merged.chunks.size())
-                    throw std::runtime_error("Merged TOC did not round-trip: " + relative);
-                write_file(output / fs::path(relative), bytes);
-                ++report.superbundles;
+                sources.push_back(std::move(source));
             }
+            auto merged = combine(baseRoot / fs::path(relative), baseRoot, sources, report,
+                                  relative, used, store, manifestArchive, gameRoot, grid, overrides);
+            auto bytes = fb::write_patch_toc(merged.bundles, merged.chunks, merged.flags);
+            // Read the result back before publishing it: a TOC whose perfect
+            // hash does not resolve would take the game down at load time.
+            const auto check = fb::read_toc(bytes);
+            fb::verify_toc(check);
+            if (check.bundles.size() != merged.bundles.size() ||
+                check.chunks.size() != merged.chunks.size())
+                throw std::runtime_error("Merged TOC did not round-trip: " + relative);
+            write_file(output / fs::path(relative), bytes);
+            ++report.superbundles;
+        }
 
             // A live merge takes out the TOCs of superbundles no enabled mod ships
             // any more, so the next load reads the game's own copy instead.
