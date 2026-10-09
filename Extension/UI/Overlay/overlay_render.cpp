@@ -3,12 +3,37 @@
 #include "Engine/Core/Profiling/profiler.h"
 #include "overlay_internal.h"
 #include "Extension/Trainer/trainer_page.h"
+#include "Extension/HallOfMeat/hall_of_meat_overlay.h"
 #include "park_previews.h"
 #include "chat_emotes.h"
 #include "input_capture.h"
 #include "cursor.h"
+#include <imgui_internal.h>
 
 namespace dingosdk::overlay::detail {
+
+    // ImGui draws into the swapchain's back buffer, so its display is the buffer, in the buffer's
+    // pixels. The Win32 backend sizes the display by the window's client area and places the mouse in
+    // it; the two differ whenever the window is measured in other units than the buffer: a window
+    // Windows scales for the display (a 1920x1080 client on a 4K display at 200%, borderless) or a
+    // buffer stretched to the window. Every mouse position queued since the last frame comes in client
+    // coordinates and is mapped into the buffer once.
+    void fit_display_to_buffer(State& s, ID3D12Resource* buffer) {
+        auto& io = ImGui::GetIO();
+        const auto description = buffer->GetDesc();
+        const ImVec2 client = io.DisplaySize;
+        const ImVec2 pixels(static_cast<float>(description.Width), static_cast<float>(description.Height));
+        if (client.x <= 0 || client.y <= 0 || pixels.x <= 0 || pixels.y <= 0) return;
+        io.DisplaySize = pixels;
+        const ImVec2 scale(pixels.x / client.x, pixels.y / client.y);
+        for (auto& event : ImGui::GetCurrentContext()->InputEventsQueue) {
+            if (event.Type != ImGuiInputEventType_MousePos || event.EventId <= s.mapped_mouse_event) continue;
+            s.mapped_mouse_event = event.EventId;
+            if (event.MousePos.PosX == -FLT_MAX) continue; // the mouse left the window
+            event.MousePos.PosX *= scale.x;
+            event.MousePos.PosY *= scale.y;
+        }
+    }
 
     bool completed(UINT64 value, DWORD timeout_ms) {
         auto& s = state();
@@ -277,6 +302,7 @@ namespace dingosdk::overlay::detail {
         if (!s.fence_event) return false;
         ImGuiContext* previous = ImGui::GetCurrentContext();
         s.context = ImGui::CreateContext();
+        s.mapped_mouse_event = 0; // a new context numbers its events afresh
         ImGui::SetCurrentContext(s.context);
         ImGui::GetIO().IniFilename = nullptr;
         ImGui::GetIO().LogFilename = nullptr;
@@ -285,10 +311,12 @@ namespace dingosdk::overlay::detail {
         dingosdk::overlay::load_skate_fonts(s.menu);
         // Thumbnails are read from the game's own data at startup; the read is
         // normally long finished by the time the first frame gets here.
-        // Emotes reserve their room before the park previews build the atlas, and fill it after.
+        // Emotes and Hall of Meat's images reserve their room before the park previews build the atlas, and fill it after.
         const auto emote_count = reserve_chat_emotes(*ImGui::GetIO().Fonts, std::chrono::seconds(5));
+        reserve_hall_of_meat_images(*ImGui::GetIO().Fonts, std::chrono::seconds(5));
         const auto preview_count = load_park_previews(*ImGui::GetIO().Fonts, std::chrono::seconds(5));
         fill_chat_emotes(*ImGui::GetIO().Fonts);
+        fill_hall_of_meat_images(*ImGui::GetIO().Fonts);
         if (emote_count)
             dingosdk::logging::printf(dingosdk::logging::Level::info, dingosdk::logging::Channel::graphics,
                 "Chat emotes: %zu ready.", emote_count);
@@ -346,7 +374,6 @@ namespace dingosdk::overlay::detail {
         return std::all_of(position.begin(), position.end(), [](float value) { return std::isfinite(value); });
     }
 
-    // Copies the published model; native world/catalog discovery stays on the client thread at its existing cadence.
     void draw_menu() {
         auto& s = state();
         const auto now = std::chrono::steady_clock::now();
@@ -388,12 +415,7 @@ namespace dingosdk::overlay::detail {
             s.editor_flight.store(false);
             return;
         }
-        const bool editor_was_visible = s.editor_visible.exchange(s.model.debug.park_editor || s.model.debug.style_editor);
-        if (s.model.debug.style_editor && !s.model.debug.park_editor) {
-            s.editor_flight.store(false);
-            dingosdk::overlay::draw_style_editor(s.menu, s.model, s.callbacks, s.editor_exit_requested.exchange(false));
-            return;
-        }
+        const bool editor_was_visible = s.editor_visible.exchange(s.model.debug.park_editor);
         if (s.model.debug.park_editor) {
             if (!editor_was_visible) s.editor.exit_pending = false;
             bool visible = s.visible.load();
@@ -459,15 +481,8 @@ namespace dingosdk::overlay::detail {
         const bool skate_hud_frame = skate_hud_pending();
         const bool nametag_frame = nametags_pending();
         const bool meat_frame = hall_of_meat_pending();
-        const bool debug_panel_frame = debug_panel_pending();
         const bool perf_frame = perf_hud_pending() || trainer_hud_pending();
         if (trainer_open_requested()) s.visible.store(true);
-        // The style editor was asked for while no model was read: read the model a few times a second until its screen opens.
-        if (!(s.visible.load() || s.console_visible.load() || s.editor_visible.load()) && dingosdk::overlay::style_editor_wanted() &&
-            std::chrono::steady_clock::now() - s.last_model >= std::chrono::milliseconds(250)) {
-            draw_menu();
-            if (s.model.debug.style_editor) s.editor_visible.store(true);
-        }
         const bool menu_frame = interactive_visible(s);
         if (!menu_frame) {
             if (s.ui_was_interactive) {
@@ -484,7 +499,7 @@ namespace dingosdk::overlay::detail {
             }
             // Hidden, the overlay still draws while a notice or chat line is on screen.
             if (s.loaded_notice_posted && !notices_pending() && !chat_frame && !game_text_frame && !skate_hud_frame &&
-                !nametag_frame && !meat_frame && !debug_panel_frame && !perf_frame) return;
+                !nametag_frame && !meat_frame && !perf_frame) return;
         }
         else if (!s.ui_was_interactive) {
             s.ui_was_interactive = true;
@@ -525,6 +540,7 @@ namespace dingosdk::overlay::detail {
         ImGui_ImplDX12_NewFrame();
         { OverlayInputAccess access; ImGui_ImplWin32_NewFrame(); }
         update_menu_pointer();
+        fit_display_to_buffer(s, frame.buffer.Get());
         ImGui::NewFrame();
         if (menu_frame) {
             draw_menu();
@@ -532,13 +548,11 @@ namespace dingosdk::overlay::detail {
             draw_perf_window();
         }
         draw_hall_of_meat();
-        draw_debug_panel();
         draw_nametags();
         draw_game_text();
         draw_skate_hud();
         draw_perf_hud();
         draw_trainer_hud();
-        draw_cover();
         draw_notices();
         draw_chat();
         sync_menu_cursor(); // close buttons also change visibility, without a key message

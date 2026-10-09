@@ -1,8 +1,8 @@
 #include <winver.h>
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION @version_major@,@version_minor@,@version_patch@,0
- PRODUCTVERSION @version_major@,@version_minor@,@version_patch@,0
+ FILEVERSION @version_major@,@version_minor@,@version_patch@,@version_revision@
+ PRODUCTVERSION @version_major@,@version_minor@,@version_patch@,@version_revision@
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
  FILEFLAGS 0x0L
  FILEOS VOS_NT_WINDOWS32

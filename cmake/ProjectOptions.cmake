@@ -7,16 +7,16 @@ endif()
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Windows version information (Explorer's Details tab) for the shipped binaries. The release
-# script passes its version; local builds say 0.0.0.
-set(DINGOSDK_VERSION "0.0.0" CACHE STRING "Release version stamped into the shipped binaries")
+# script passes its version; local builds say 0.0.0.0.
+set(DINGOSDK_VERSION "0.0.0.0" CACHE STRING "Release version stamped into the shipped binaries")
 # The same version for code to show (generated/reskate_version.h).
 string(REPLACE "\\" "\\\\" reskate_version_escaped "${DINGOSDK_VERSION}")
 string(REPLACE "\"" "\\\"" reskate_version_escaped "${reskate_version_escaped}")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/templates/reskate_version.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/reskate_version.h" @ONLY)
 function(dingosdk_version_info target description file_name file_type)
-    if(NOT DINGOSDK_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)")
-        message(FATAL_ERROR "DINGOSDK_VERSION must look like 1.2.3, not '${DINGOSDK_VERSION}'")
+    if(NOT DINGOSDK_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)\\.([0-9]+)")
+        message(FATAL_ERROR "DINGOSDK_VERSION must look like 1.2.3.4, not '${DINGOSDK_VERSION}'")
     endif()
     if(NOT WIN32)
         return()
@@ -24,6 +24,7 @@ function(dingosdk_version_info target description file_name file_type)
     set(version_major ${CMAKE_MATCH_1})
     set(version_minor ${CMAKE_MATCH_2})
     set(version_patch ${CMAKE_MATCH_3})
+    set(version_revision ${CMAKE_MATCH_4})
     set(version_description "${description}")
     set(version_file_name "${file_name}")
     set(version_file_type "${file_type}")

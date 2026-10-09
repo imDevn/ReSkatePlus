@@ -10,11 +10,10 @@
 #include "Engine/Game/Build/supported_build.h"
 #include "Engine/Vfs/mod_catalog.h"
 #include "Extension/Boot/offline_boot.h"
-#include "Extension/Debug/debug_panel.h"
+#include "Extension/HallOfMeat/hall_of_meat.h"
 #include "Extension/Skater/camera_observer.h"
 #include "Extension/Progression/entitlement_request_hook.h"
 #include "Extension/Skater/skater_observer.h"
-#include "Extension/Skater/style_editor.h"
 #include "Extension/UI/NativeMenu/native_menu.h"
 #include "Extension/Throwdowns/throwdown_lab.h"
 #include "Extension/Multiplayer/Session/session.h"
@@ -27,17 +26,11 @@
 #include "Extension/Progression/neighborhood_unlock_override.h"
 #include "Extension/Progression/progression_service_guard.h"
 #include "Extension/Rendering/graphics_labels.h"
-#include "Extension/Rendering/local_skater_render.h"
 #include "Extension/Settings/gameplay_settings_override.h"
 #include "Extension/Settings/named_settings.h"
 #include "Extension/Skater/client_source_spawn.h"
-#include "Extension/Skater/hall_of_meat.h"
-#include "Extension/Skater/hall_of_meat_debug.h"
-#include "Extension/Skater/local_skater_body.h"
 #include "Extension/Skater/no_bail.h"
-#include "Extension/Skater/skater_body_debug.h"
 #include "Extension/Skater/skater_slot_override.h"
-#include "Extension/Skater/skater_state_debug.h"
 #include "Extension/UI/Startup/startup_window.h"
 #include "Extension/World/level_loading.h"
 #include "Extension/World/loading_screen.h"
@@ -50,25 +43,25 @@
 #include <filesystem>
 
 namespace dingosdk::runtime::detail {
-namespace {
-bool exact_environment_one(const wchar_t* name) noexcept {
-    const auto incoming_error = GetLastError();
-    std::array<wchar_t, 2> value{};
-    const auto length = GetEnvironmentVariableW(name, value.data(),
-        static_cast<DWORD>(value.size()));
-    SetLastError(incoming_error);
-    return length == 1 && value[0] == L'1';
-}
-bool validate_image(std::uintptr_t base) {
-    IMAGE_DOS_HEADER dos{}; IMAGE_NT_HEADERS64 nt{};
-    if (!read(base, dos) || dos.e_magic != IMAGE_DOS_SIGNATURE || dos.e_lfanew <= 0 || dos.e_lfanew > 0x100000 ||
-        !read(base + dos.e_lfanew, nt) || nt.Signature != IMAGE_NT_SIGNATURE ||
-        nt.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64 || nt.OptionalHeader.SizeOfImage != dingosdk::supported_build::game_image_size) return false;
-    if (!matches(base + rt::client_tick, rt::client_tick_prefix)) return false;
-    for (const auto& entry : rt::image_checks) if (!matches(base + entry.rva, entry.bytes)) return false;
-    return true;
-}
-}
+    namespace {
+        bool exact_environment_one(const wchar_t* name) noexcept {
+            const auto incoming_error = GetLastError();
+            std::array<wchar_t, 2> value{};
+            const auto length = GetEnvironmentVariableW(name, value.data(),
+                static_cast<DWORD>(value.size()));
+            SetLastError(incoming_error);
+            return length == 1 && value[0] == L'1';
+        }
+        bool validate_image(std::uintptr_t base) {
+            IMAGE_DOS_HEADER dos{}; IMAGE_NT_HEADERS64 nt{};
+            if (!read(base, dos) || dos.e_magic != IMAGE_DOS_SIGNATURE || dos.e_lfanew <= 0 || dos.e_lfanew > 0x100000 ||
+                !read(base + dos.e_lfanew, nt) || nt.Signature != IMAGE_NT_SIGNATURE ||
+                nt.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64 || nt.OptionalHeader.SizeOfImage != dingosdk::supported_build::game_image_size) return false;
+            if (!matches(base + rt::client_tick, rt::client_tick_prefix)) return false;
+            for (const auto& entry : rt::image_checks) if (!matches(base + entry.rva, entry.bytes)) return false;
+            return true;
+        }
+    }
 }
 
 extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
@@ -90,10 +83,11 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
             dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::assets,
                 "Game content cache: {} items, {} challenges, {} entitlements.",
                 content.items.size(), content.challenges.size(), content.entitlements.size());
-        } else {
+        }
+        else {
             dingosdk::logging::write(dingosdk::logging::Level::warning, dingosdk::logging::Channel::assets,
                 "Game content cache is not installed: item names, challenges and default entitlements are unavailable. "
-                "Start ReSkate from ReSkatePlusLauncher to install it.");
+                "Start ReSkate+ from ReSkatePlusLauncher to install it.");
         }
         // World layers come from the installed level data. The launcher builds
         // the per-build cache; without it this scans the level TOCs once here.
@@ -107,7 +101,8 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
                 "World layers: {} layers across {} maps from the level data ({} ms).",
                 layers.layers.size(), layers.anchors.size(), GetTickCount64() - started);
             dingosdk::install_world_layer_catalog(std::move(layers));
-        } catch (const std::exception& error) {
+        }
+        catch (const std::exception& error) {
             dingosdk::logging::log(dingosdk::logging::Level::warning, dingosdk::logging::Channel::world,
                 "World layers are unavailable: {}", error.what());
         }
@@ -133,8 +128,8 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
 #pragma warning(push)
 #pragma warning(disable: 4191)
         if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                reinterpret_cast<LPCWSTR>(&DingoSDKDebugInitialize), &self)) {
+            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(&DingoSDKDebugInitialize), &self)) {
             dingosdk::logging::log(dingosdk::logging::Level::error, dingosdk::logging::Channel::runtime,
                 "Cannot locate the runtime module (Windows error {}).", GetLastError());
             return FALSE;
@@ -154,7 +149,7 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
         const auto& mod_catalog = dingosdk::mods::catalog();
         const auto patch_level_path = std::filesystem::path(
             std::wstring(self_path, self_length)).parent_path() / L"Patch" / L"reskate-levels.json";
-        r.patch_level_manifests = {patch_level_path};
+        r.patch_level_manifests = { patch_level_path };
         if (!mod_catalog.data_root.empty()) {
             const auto data_level_path = mod_catalog.data_root / L"Patch" / L"reskate-levels.json";
             std::error_code level_path_error;
@@ -189,7 +184,7 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
             "Game graphics provider loaded: sl.interposer.dll.");
         const dingosdk::overlay::CallbacksV3 callbacks{
             nullptr, read_model, queue_load, queue_debug, queue_offline_feature,
-            queue_console_command};
+            queue_console_command };
         auto native_callbacks = callbacks;
         native_callbacks.read_model = read_native_menu_model;
         dingosdk::multiplayer::set_native_menu_callbacks(native_callbacks);
@@ -198,7 +193,6 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
         dingosdk::overlay::set_game_text_feed(dingosdk::multiplayer::skate_debug_text);
         dingosdk::overlay::set_skate_hud_feed(dingosdk::multiplayer::skate_hud);
         dingosdk::overlay::set_nametag_feed(dingosdk::multiplayer::custom_nametags);
-        dingosdk::overlay::set_style_playhead_feed(dingosdk::style_editor::playhead);
         // Engine functions the profiler's stack sampler names in its reports.
         static constexpr dingosdk::profiler::Label engine_labels[]{
             {dingosdk::addr::profiler_labels::client_update, "Client game update (ReSkate tick hook)"},
@@ -219,7 +213,7 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
             {dingosdk::addr::profiler_labels::render_dispatch_end, "Job: renderDispatchEnd"},
             {dingosdk::addr::profiler_labels::input_dispatch, "Input dispatch"},
             {dingosdk::addr::profiler_labels::ui_pointer_update, "UI pointer update (mouse hit-test)"},
-            {dingosdk::addr::profiler_labels::ui_view_pointer, "UI view pointer hit-test"}};
+            {dingosdk::addr::profiler_labels::ui_view_pointer, "UI view pointer hit-test"} };
         dingosdk::profiler::set_engine_labels(engine_labels);
         dingosdk::overlay::set_park_surface_queue(dingosdk::queue_local_park_surface);
         dingosdk::overlay::set_park_preview_queue(dingosdk::queue_local_park_preview);
@@ -377,19 +371,8 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
         const bool camera_hook = dingosdk::start_camera_observer(r.base);
         record("{\"event\":\"camera_observer_initialized\",\"active\":" + std::string(camera_hook ? "true" : "false") + "}");
         (void)dingosdk::start_no_bail(r.base);
-        const bool body = dingosdk::skater_body::start(r.base);
-        record("{\"event\":\"skater_body_initialized\",\"active\":" + std::string(body ? "true" : "false") + "}");
-        const bool render = dingosdk::skater_render::start(r.base);
-        record("{\"event\":\"skater_render_initialized\",\"active\":" + std::string(render ? "true" : "false") + "}");
-        const bool meat = dingosdk::hall_of_meat::start();
-        if (meat)
-            dingosdk::overlay::set_hall_of_meat_hooks({dingosdk::hall_of_meat::frame, dingosdk::hall_of_meat::enabled});
+        const bool meat = dingosdk::hall_of_meat::start(r.base);
         record("{\"event\":\"hall_of_meat_initialized\",\"active\":" + std::string(meat ? "true" : "false") + "}");
-        dingosdk::debug_panel::add(dingosdk::skater_state::debug_source());
-        if (body) dingosdk::debug_panel::add(dingosdk::skater_body::debug_source());
-        if (meat) dingosdk::debug_panel::add(dingosdk::hall_of_meat::debug_source());
-        dingosdk::overlay::set_debug_panel_hooks(
-            {dingosdk::debug_panel::panel, dingosdk::debug_panel::sources, dingosdk::debug_panel::selected});
         const bool noclip_velocity = dingosdk::start_client_noclip_velocity(r.base);
         record("{\"event\":\"noclip_velocity_initialized\",\"active\":" + std::string(noclip_velocity ? "true" : "false") + "}");
         const bool loading_screens = dingosdk::loading_screen::start(r.base);
@@ -440,7 +423,7 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
                 dingosdk::multiplayer::throwdown_lab_before_level_transition(next);
             });
         if (!r.native_loading_logging) dingosdk::logging::write(dingosdk::logging::Level::warning,
-            dingosdk::logging::Channel::ui, "Native ReSkate menu disabled: shutdown cleanup hook is unavailable.");
+            dingosdk::logging::Channel::ui, "Native ReSkate+ menu disabled: shutdown cleanup hook is unavailable.");
         r.initialized = true;
         if (global_offline_requested)
             record("{\"event\":\"launcher_readiness\",\"ready\":true}");
@@ -448,11 +431,13 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
         activity_line(dingosdk::ConsoleSource::runtime, "Offline runtime initialized. Waiting for the game.");
         startup_window.hand_over();
         return TRUE;
-    } catch (const std::exception& error) {
+    }
+    catch (const std::exception& error) {
         dingosdk::logging::log(dingosdk::logging::Level::critical, dingosdk::logging::Channel::runtime,
             "Runtime initialization failed: {}", error.what());
         return FALSE;
-    } catch (...) {
+    }
+    catch (...) {
         dingosdk::logging::write(dingosdk::logging::Level::critical, dingosdk::logging::Channel::runtime,
             "Runtime initialization failed with an unknown exception.");
         return FALSE;

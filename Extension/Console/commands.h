@@ -14,7 +14,6 @@ Entry variable(std::string name, std::string description, Group group, Argument 
 State boolean_state(bool available, bool value, std::string reason = {}, std::string detail = {});
 void register_movement_commands(Commands &);
 void register_ai_commands(Commands &);
-void register_style_commands(Commands &);
 void register_settings_commands(Commands &);
 void register_world_commands(Commands &);
 void register_graphics_commands(Commands &);
@@ -24,7 +23,7 @@ void register_park_editor_commands(Commands &);
 void register_multiplayer_commands(Commands &);
 void register_perf_commands(Commands &);
 void register_trainer_commands(Commands &);
-void register_debug_commands(Commands &);
+void register_hall_of_meat_commands(Commands &);
 // Runtime adapters. Invoked only by the verified game-thread dispatcher.
 void request_debug(overlay::DebugAction, bool enabled = false, float value = 0);
 void request_feature(overlay::OfflineFeatureGroup, bool enabled);

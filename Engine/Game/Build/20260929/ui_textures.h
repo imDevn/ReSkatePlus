@@ -30,6 +30,7 @@ inline constexpr Texture wipeout_broken{scoring_toc, scoring_bundle,
     "ui/textures/icons/scoring/img_icon_scoring_wipeout_broken_64_68_64"};
 inline constexpr Texture spread_eagle{scoring_toc, scoring_bundle, "ui/textures/icons/scoring/img_icon_scoring_spreadeagle_64_64_64"};
 inline constexpr Texture gap_height{scoring_toc, scoring_bundle, "ui/textures/icons/scoring/img_icon_scoring_gapheight_64_64_64"};
+inline constexpr Texture roll{scoring_toc, scoring_bundle, "ui/textures/icons/scoring/img_icon_scoring_roll_64_64_64"};
 
 // The game's level roots, whose bundles hold most of its UI textures.
 inline constexpr std::string_view root_toc = "Win32/levels/game/dingolevel_root/dingolevel_root.toc";

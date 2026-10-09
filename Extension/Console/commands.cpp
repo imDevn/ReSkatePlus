@@ -215,7 +215,6 @@ const Commands &game_commands() {
         register_console_commands(*result);
         register_movement_commands(*result);
         register_ai_commands(*result);
-        register_style_commands(*result);
         register_settings_commands(*result);
         register_world_commands(*result);
         register_graphics_commands(*result);
@@ -225,7 +224,7 @@ const Commands &game_commands() {
         register_multiplayer_commands(*result);
         register_perf_commands(*result);
         register_trainer_commands(*result);
-        register_debug_commands(*result);
+        register_hall_of_meat_commands(*result);
         return result;
     }();
     return *registry;
