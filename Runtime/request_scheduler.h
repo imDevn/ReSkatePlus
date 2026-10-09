@@ -48,8 +48,7 @@ namespace dingosdk::runtime {
             if (executing_console(thread)) {
                 work_.emplace(std::next(work_.begin(), static_cast<std::ptrdiff_t>(continuations_)), std::move(value));
                 ++continuations_;
-            }
-            else work_.emplace_back(std::move(value));
+            } else work_.emplace_back(std::move(value));
         }
     public:
         bool loading() const noexcept { return load_phase_ != LoadPhase::idle; }

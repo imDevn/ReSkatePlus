@@ -41,426 +41,432 @@
 #include <thread>
 
 namespace dingosdk::runtime::detail {
-    namespace {
-        using HostedSelector = bool (*)(const char*);
-        const char* state_name(DWORD state) { return dingosdk::client_state_name(state); }
-        // What update_model learned about this tick's client, reused by the rest of the
-        // tick instead of reading the same native chains again.
-        struct TickState {
-            bool valid{};
-            DWORD state{}, game_type{};
-            std::optional<bool> context;             // native_context
-            std::optional<const char*> camera_issue; // camera_probe_unavailable_reason, nullptr when ready
-        };
-        void refresh_interactive_model(std::uintptr_t client, DWORD state, DWORD game_type) {
-            auto& r = runtime();
-            auto world = dingosdk::local_profile_world_layers();
-            bool ready{};
-            {
-                std::lock_guard lock(r.mutex);
-                ready = !r.observer_failed && !r.requests.loading() && r.model.can_queue_load &&
-                    state == r.previous_state && (state == 13 || state == 21) && world.ready;
+namespace {
+using HostedSelector = bool (*)(const char*);
+const char* state_name(DWORD state) { return dingosdk::client_state_name(state); }
+// What update_model learned about this tick's client, reused by the rest of the
+// tick instead of reading the same native chains again.
+struct TickState {
+    bool valid{};
+    DWORD state{}, game_type{};
+    std::optional<bool> context;             // native_context
+    std::optional<const char*> camera_issue; // camera_probe_unavailable_reason, nullptr when ready
+};
+void refresh_interactive_model(std::uintptr_t client, DWORD state, DWORD game_type) {
+    auto& r = runtime();
+    auto world = dingosdk::local_profile_world_layers();
+    bool ready{};
+    {
+        std::lock_guard lock(r.mutex);
+        ready = !r.observer_failed && !r.requests.loading() && r.model.can_queue_load &&
+            state == r.previous_state && (state == 13 || state == 21) && world.ready;
+    }
+    const auto map = ready && native_context(r.base, client, game_type) ? world.map : dingosdk::WorldMap::none;
+    // Commands already run on the verified client thread. Apply their settings
+    // and publish the result now, without waiting for the 500 ms catalog scan.
+    dingosdk::update_local_world_controls(map);
+    dingosdk::update_local_graphics_controls();
+    auto controls = dingosdk::local_profile_world_controls();
+    auto graphics = dingosdk::local_profile_graphics_controls();
+    auto parks = dingosdk::local_profile_parks();
+    auto progression = dingosdk::local_profile_progression();
+    auto player_card = dingosdk::local_profile_player_card();
+    auto object_persistence = dingosdk::local_profile_object_persistence();
+    auto editor = dingosdk::local_park_editor();
+    auto bindings = dingosdk::local_profile_controller_bindings();
+    const auto missions = dingosdk::local_profile_missions();
+    std::vector<dingosdk::overlay::MissionRow> rows;
+    for (const auto& row : missions.rows) rows.push_back({row.id, row.group, row.completed});
+    std::lock_guard lock(r.mutex);
+    r.model.world = std::move(world);
+    r.model.world_controls = std::move(controls);
+    r.model.graphics = std::move(graphics);
+    r.model.parks = std::move(parks);
+    r.model.progression = std::move(progression);
+    r.model.player_card = std::move(player_card);
+    r.model.object_persistence = std::move(object_persistence);
+    r.model.editor = std::move(editor);
+    r.model.bindings = std::move(bindings);
+    r.model.missions_available = missions.available;
+    r.model.mission_feedback = missions.feedback;
+    r.model.missions = std::move(rows);
+    ++r.model_revision;
+}
+// Engine settings that cost simulation time for nothing here, set once through the named
+// setter (retried until the settings registry answers):
+// - telemetry and the performance tracker only feed EA's backend, absent offline;
+// - EA's error reporting (EadpErrorsData) only builds reports for EA's servers, which
+//   ea_service_block keeps unreachable. Set here because the same values given on the game's
+//   command line do not take;
+// - the world-transform update, which grows with every remote player's entities, is split
+//   over more jobs than Game.cfg's 2.
+void apply_performance_settings() {
+    static bool applied = false;
+    static ULONGLONG next_attempt = 0;
+    if (applied) return;
+    const auto now = GetTickCount64();
+    if (now < next_attempt) return;
+    next_attempt = now + 500;
+    try {
+        const auto jobs = std::to_string(std::clamp(std::thread::hardware_concurrency() / 2, 2u, 8u));
+        const std::array<std::pair<const char*, std::string>, 10> settings{{
+            {"DingoTelemetry.Enable", "0"},
+            {"DingoTelemetry.EnablePlayerTickEvents", "0"},
+            {"DingoTelemetry.EnablePerformanceEvents", "0"},
+            {"DingoTelemetry.EnableCPUBenchmark", "0"},
+            {"EadpErrorsData.DisableAllEventsReporting", "1"},
+            {"EadpErrorsData.EnableReportCrashes", "0"},
+            {"EadpErrorsData.AutoSendEventFromPersistence", "0"},
+            {"PerformanceTracker.Enabled", "0"},
+            {"PerformanceTracker.JuiceLogPerformance", "0"},
+            {"EcsWorldTransform.ParallelWorldTransformUpdateJobCount", jobs},
+        }};
+        bool pending = false;
+        std::string results;
+        for (const auto& [name, value] : settings) {
+            const auto result = dingosdk::change_named_setting(name, value, false);
+            pending = pending || result.starts_with("error: ");
+            results += (results.empty() ? "" : " | ") + result;
+        }
+        if (!pending) {
+            applied = true;
+            dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::runtime,
+                "Performance settings: {}", results);
+        }
+    } catch (...) {}
+}
+// The mesh streaming pool holds every render mesh the world has loaded, in video memory.
+// GraphicsPC.lua fixes it at 532960 KB (520 MB) on every PC quality level, sized for San Van's
+// streamed cells; a big custom map's meshes do not fit, so its level either never finishes
+// loading or waits out the transition's 180 s world-quality timeout
+// (MeshStreamingLoadStateProvider never reports high) and spawns the skater invisible. The pools
+// are re-created from this setting at every level start (FUN_14507a2d0), so raising it before a
+// load is enough; the quality script sets it again whenever graphics settings are applied, so it
+// is kept here. The engine turns it into bytes in 32 bits (PoolSize << 10, plus
+// PoolHeadroomSize), so the combined allocation must remain below 4 GiB.
+// How far it is raised depends on the card: 1.0.0 set 3.5 GiB on every card, the likely cause
+// of older cards resetting the device while loading (DXGI_ERROR_DEVICE_RESET in
+// gameRendBeginFrame on an RX 580, 2026-10-03). A quarter of the card's dedicated memory, from
+// the game's own 520 MB up to 3.5 GiB (from 16 GB cards up); cards of 6 GB or less keep the
+// game's value. Cards of up to 12 GB stop at 2 GiB: a quarter was 3 GiB of a 12 GB card, and
+// with a big map and texture mods on top the game ran out of video memory (E_OUTOFMEMORY from
+// CreateCommittedResource on an RTX 4070 SUPER, 2026-10-04).
+namespace mesh_pool {
+constexpr std::uint32_t stock_kb = 532960, most_kb = 3584u * 1024u, most_to_12gb_kb = 2048u * 1024u;
+static_assert((std::uint64_t{most_kb} + 24576u) * 1024u <= 0xffffffffull);
+struct Card { std::uint64_t memory{}; std::string name; };
+// The hardware adapter with the most dedicated memory: the one the game renders on (a laptop's
+// integrated GPU has little or none). The game's own dxgi.dll, so nothing new is loaded.
+Card largest_card() {
+    Card card;
+    const auto module = GetModuleHandleW(L"dxgi.dll");
+    using Create = HRESULT(WINAPI*)(REFIID, void**);
+    const auto create = module ? reinterpret_cast<Create>(GetProcAddress(module, "CreateDXGIFactory1")) : nullptr;
+    IDXGIFactory1* factory{};
+    if (!create || FAILED(create(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&factory))) || !factory) return card;
+    IDXGIAdapter1* adapter{};
+    for (UINT i = 0; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
+        DXGI_ADAPTER_DESC1 desc{};
+        if (SUCCEEDED(adapter->GetDesc1(&desc)) && !(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) &&
+            desc.DedicatedVideoMemory > card.memory) {
+            card.memory = desc.DedicatedVideoMemory;
+            card.name.clear();
+            for (const auto* c = desc.Description; *c; ++c) card.name.push_back(*c < 128 ? static_cast<char>(*c) : '?');
+        }
+        adapter->Release();
+    }
+    factory->Release();
+    return card;
+}
+// KiB for the pool on this card, or 0 to keep the game's own value.
+std::uint32_t size_kb(std::uint64_t memory) {
+    // Cards report a little under or over their nominal size.
+    constexpr std::uint64_t six_gib = 6ull << 30, twelve_gib = 12ull << 30, slack = 256ull << 20;
+    if (memory <= six_gib + slack) return 0;
+    const auto most = memory <= twelve_gib + slack ? most_to_12gb_kb : most_kb;
+    return static_cast<std::uint32_t>(std::clamp<std::uint64_t>(memory / 4 / 1024, stock_kb, most));
+}
+}
+void apply_mesh_streaming_pool() {
+    static const auto card = mesh_pool::largest_card();
+    static const auto pool_kb = mesh_pool::size_kb(card.memory);
+    static bool reported = false;
+    if (!reported) {
+        reported = true;
+        dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::runtime,
+            "Mesh streaming pool: {} for {} ({:.1f} GB of video memory).",
+            pool_kb ? std::format("{} MB", pool_kb / 1024) : std::string("the game's own 520 MB"),
+            card.name.empty() ? std::string("an unknown card") : card.name, static_cast<double>(card.memory) / (1ull << 30));
+    }
+    if (!pool_kb) return;
+    static ULONGLONG next_check = 0;
+    static std::string last_result;
+    const auto now = GetTickCount64();
+    if (now < next_check) return;
+    next_check = now + 2000;
+    try {
+        const auto result = dingosdk::change_named_setting("MeshStreaming.PoolSize", std::to_string(pool_kb), false);
+        if (result.starts_with("error: ")) { next_check = now + 500; return; }
+        if (result != last_result && !result.ends_with("(unchanged)"))
+            dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::runtime,
+                "Mesh streaming pool raised for big custom maps (applies from the next level load): {}", result);
+        last_result = result;
+    } catch (...) {}
+}
+void apply_throwdown_modes() {
+    // The throwdowner flow picks between the mode-select page and straight Jam
+    // placement by reading these by name (GetBoolSetting). Retail receives them
+    // from live config; S.K.A.T.E. ships off in the native constructor. Go
+    // through the named setter so registered setting listeners are notified.
+    static bool applied = false;
+    static ULONGLONG next_attempt = 0;
+    static std::string last_result;
+    if (applied) return;
+    const auto now = GetTickCount64();
+    if (now < next_attempt) return;
+    next_attempt = now + 500;
+    try {
+        bool pending = false;
+        std::string results;
+        // EnableAdvancedParameters adds the host's Customize button and the
+        // parameter panel (players, timer, privacy, scored actions) to the
+        // throwdown details page; it also ships off.
+        for (const auto* name : {"DingoThrowdowns.EnableSpotBattle", "DingoThrowdowns.EnableSKATE",
+                                 "DingoThrowdowns.EnableAdvancedParameters"}) {
+            const auto result = dingosdk::change_named_setting(name, "1", false);
+            pending = pending || result.starts_with("error: ");
+            results += (results.empty() ? "" : " | ") + result;
+        }
+        {
+            // Local play has nobody to wait for: with the single-player queue
+            // enabled (native_throwdowns.cpp) the 120 s join countdown would only
+            // delay the host. Revisit when throwdowns are relayed to other players.
+            const auto result = dingosdk::change_named_setting("DingoThrowdowns.QueueStartTimer", "1", false);
+            pending = pending || result.starts_with("error: ");
+            results += " | " + result;
+        }
+        if (results != last_result) {
+            last_result = results;
+            dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::progression,
+                "Throwdown modes: {}", results);
+        }
+        applied = !pending;
+    } catch (...) {}
+}
+void update_model(std::uintptr_t client, TickState& frame) {
+    auto& r = runtime();
+    std::uintptr_t vtable{};
+    DWORD state{}, game_type{};
+    // Every client tick: peeked, not read (three ReadProcessMemory calls a tick, profiled 2026-10-02).
+    if (!memory::peek(client, vtable) || vtable != r.base + engine::client_vtable || client > highest - 0x2a0 ||
+        !memory::peek(client + 0xc4, state) || state > 26 || !memory::peek(client + 0xc0, game_type) || game_type > 3) return;
+    DWORD no_thread{};
+    r.engine_thread.compare_exchange_strong(no_thread, GetCurrentThreadId());
+    if (r.engine_thread.load() != GetCurrentThreadId()) return;
+    frame.valid = true;
+    frame.state = state;
+    frame.game_type = game_type;
+    // Some two dozen native reads: one result serves the whole tick.
+    const auto native_context_ready = [&] {
+        if (!frame.context) frame.context = native_context(r.base, client, game_type);
+        return *frame.context;
+    };
+    // Engine settings are only shown by the menu and console; refresh them
+    // quickly (and hand them over) only while one of them is reading.
+    const auto settings_now = GetTickCount64();
+    const bool settings_wanted = settings_now < r.named_settings_wanted_until.load(std::memory_order_relaxed);
+    dingosdk::refresh_named_settings(settings_wanted);
+    apply_throwdown_modes();
+    apply_performance_settings();
+    dingosdk::job_spin::apply_default();
+    apply_mesh_streaming_pool();
+    dingosdk::multiplayer::apply_throwdown_strings(r.base);
+    const bool named_context_ready = (state == 13 || state == 21) && native_context_ready();
+    {
+        std::lock_guard lock(r.mutex);
+        r.named_context_ready = named_context_ready;
+    }
+    if (settings_wanted && settings_now >= r.next_named_settings_publish) {
+        r.next_named_settings_publish = settings_now + 250;
+        publish_named_settings(r);
+    }
+    // RESKATE_STARTUP_COMMANDS="load skate1map;noclip 1" (development): console commands
+    // queued in order once the world is up and can accept them, so a build can be exercised
+    // without anyone driving the overlay. A load waits for its destination to be listed.
+    {
+        static std::optional<std::vector<std::string>> startup_commands;
+        if (!startup_commands) {
+            startup_commands.emplace();
+            std::wstring value(4096, L'\0');
+            const auto length = GetEnvironmentVariableW(L"RESKATE_STARTUP_COMMANDS", value.data(), 4096);
+            if (length && length < 4096) {
+                std::string narrow;
+                for (const auto character : value.substr(0, length))
+                    narrow.push_back(character < 128 ? static_cast<char>(character) : '?');
+                for (std::size_t start = 0; start <= narrow.size();) {
+                    auto end = narrow.find(';', start);
+                    if (end == std::string::npos) end = narrow.size();
+                    auto piece = narrow.substr(start, end - start);
+                    const auto first = piece.find_first_not_of(" \t");
+                    const auto last = piece.find_last_not_of(" \t");
+                    if (first != std::string::npos) startup_commands->push_back(piece.substr(first, last - first + 1));
+                    start = end + 1;
+                }
             }
-            const auto map = ready && native_context(r.base, client, game_type) ? world.map : dingosdk::WorldMap::none;
-            // Commands already run on the verified client thread. Apply their settings
-            // and publish the result now, without waiting for the 500 ms catalog scan.
-            dingosdk::update_local_world_controls(map);
-            dingosdk::update_local_graphics_controls();
-            auto controls = dingosdk::local_profile_world_controls();
-            auto graphics = dingosdk::local_profile_graphics_controls();
-            auto parks = dingosdk::local_profile_parks();
-            auto progression = dingosdk::local_profile_progression();
-            auto player_card = dingosdk::local_profile_player_card();
-            auto object_persistence = dingosdk::local_profile_object_persistence();
-            auto editor = dingosdk::local_park_editor();
-            auto bindings = dingosdk::local_profile_controller_bindings();
-            const auto missions = dingosdk::local_profile_missions();
-            std::vector<dingosdk::overlay::MissionRow> rows;
-            for (const auto& row : missions.rows) rows.push_back({ row.id, row.group, row.completed });
+        }
+        if (!startup_commands->empty() && named_context_ready) {
             std::lock_guard lock(r.mutex);
-            r.model.world = std::move(world);
-            r.model.world_controls = std::move(controls);
-            r.model.graphics = std::move(graphics);
-            r.model.parks = std::move(parks);
-            r.model.progression = std::move(progression);
-            r.model.player_card = std::move(player_card);
-            r.model.object_persistence = std::move(object_persistence);
-            r.model.editor = std::move(editor);
-            r.model.bindings = std::move(bindings);
-            r.model.missions_available = missions.available;
-            r.model.mission_feedback = missions.feedback;
-            r.model.missions = std::move(rows);
-            ++r.model_revision;
-        }
-        // Engine settings that cost simulation time for nothing here, set once through the named
-        // setter (retried until the settings registry answers):
-        // - telemetry and the performance tracker only feed EA's backend, absent offline;
-        // - EA's error reporting (EadpErrorsData) only builds reports for EA's servers, which
-        //   ea_service_block keeps unreachable. Set here because the same values given on the game's
-        //   command line do not take;
-        // - the world-transform update, which grows with every remote player's entities, is split
-        //   over more jobs than Game.cfg's 2.
-        void apply_performance_settings() {
-            static bool applied = false;
-            static ULONGLONG next_attempt = 0;
-            if (applied) return;
-            const auto now = GetTickCount64();
-            if (now < next_attempt) return;
-            next_attempt = now + 500;
-            try {
-                const auto jobs = std::to_string(std::clamp(std::thread::hardware_concurrency() / 2, 2u, 8u));
-                const std::array<std::pair<const char*, std::string>, 10> settings{ {
-                    {"DingoTelemetry.Enable", "0"},
-                    {"DingoTelemetry.EnablePlayerTickEvents", "0"},
-                    {"DingoTelemetry.EnablePerformanceEvents", "0"},
-                    {"DingoTelemetry.EnableCPUBenchmark", "0"},
-                    {"EadpErrorsData.DisableAllEventsReporting", "1"},
-                    {"EadpErrorsData.EnableReportCrashes", "0"},
-                    {"EadpErrorsData.AutoSendEventFromPersistence", "0"},
-                    {"PerformanceTracker.Enabled", "0"},
-                    {"PerformanceTracker.JuiceLogPerformance", "0"},
-                    {"EcsWorldTransform.ParallelWorldTransformUpdateJobCount", jobs},
-                } };
-                bool pending = false;
-                std::string results;
-                for (const auto& [name, value] : settings) {
-                    const auto result = dingosdk::change_named_setting(name, value, false);
-                    pending = pending || result.starts_with("error: ");
-                    results += (results.empty() ? "" : " | ") + result;
-                }
-                if (!pending) {
-                    applied = true;
-                    dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::runtime,
-                        "Performance settings: {}", results);
+            const auto& text = startup_commands->front();
+            const auto lower = [](std::string value) {
+                for (auto& character : value) character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+                return value;
+            };
+            // "wait <seconds>" pauses the list, e.g. to let a multiplayer join finish.
+            static std::optional<std::chrono::steady_clock::time_point> wait_until;
+            const bool wait = lower(text).starts_with("wait ");
+            if (wait) {
+                const auto now = std::chrono::steady_clock::now();
+                if (!wait_until) wait_until = now + std::chrono::milliseconds(static_cast<int>(1000 * std::atof(text.c_str() + 5)));
+                if (now >= *wait_until) {
+                    wait_until.reset();
+                    startup_commands->erase(startup_commands->begin());
                 }
             }
-            catch (...) {}
-        }
-        // The mesh streaming pool holds every render mesh the world has loaded, in video memory.
-        // GraphicsPC.lua fixes it at 532960 KB (520 MB) on every PC quality level, sized for San Van's
-        // streamed cells; a big custom map's meshes do not fit, so its level either never finishes
-        // loading or waits out the transition's 180 s world-quality timeout
-        // (MeshStreamingLoadStateProvider never reports high) and spawns the skater invisible. The pools
-        // are re-created from this setting at every level start (FUN_14507a2d0), so raising it before a
-        // load is enough; the quality script sets it again whenever graphics settings are applied, so it
-        // is kept here. The engine turns it into bytes in 32 bits (PoolSize << 10, plus
-        // PoolHeadroomSize), so the combined allocation must remain below 4 GiB.
-        // How far it is raised depends on the card: 1.0.0 set 3.5 GiB on every card, the likely cause
-        // of older cards resetting the device while loading (DXGI_ERROR_DEVICE_RESET in
-        // gameRendBeginFrame on an RX 580, 2026-10-03). A quarter of the card's dedicated memory, from
-        // the game's own 520 MB up to 3.5 GiB (from 16 GB cards up); cards of 6 GB or less keep the
-        // game's value. Cards of up to 12 GB stop at 2 GiB: a quarter was 3 GiB of a 12 GB card, and
-        // with a big map and texture mods on top the game ran out of video memory (E_OUTOFMEMORY from
-        // CreateCommittedResource on an RTX 4070 SUPER, 2026-10-04).
-        namespace mesh_pool {
-            constexpr std::uint32_t stock_kb = 532960, most_kb = 3584u * 1024u, most_to_12gb_kb = 2048u * 1024u;
-            static_assert((std::uint64_t{ most_kb } + 24576u) * 1024u <= 0xffffffffull);
-            struct Card { std::uint64_t memory{}; std::string name; };
-            // The hardware adapter with the most dedicated memory: the one the game renders on (a laptop's
-            // integrated GPU has little or none). The game's own dxgi.dll, so nothing new is loaded.
-            Card largest_card() {
-                Card card;
-                const auto module = GetModuleHandleW(L"dxgi.dll");
-                using Create = HRESULT(WINAPI*)(REFIID, void**);
-                const auto create = module ? reinterpret_cast<Create>(GetProcAddress(module, "CreateDXGIFactory1")) : nullptr;
-                IDXGIFactory1* factory{};
-                if (!create || FAILED(create(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&factory))) || !factory) return card;
-                IDXGIAdapter1* adapter{};
-                for (UINT i = 0; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
-                    DXGI_ADAPTER_DESC1 desc{};
-                    if (SUCCEEDED(adapter->GetDesc1(&desc)) && !(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) &&
-                        desc.DedicatedVideoMemory > card.memory) {
-                        card.memory = desc.DedicatedVideoMemory;
-                        card.name.clear();
-                        for (const auto* c = desc.Description; *c; ++c) card.name.push_back(*c < 128 ? static_cast<char>(*c) : '?');
-                    }
-                    adapter->Release();
-                }
-                factory->Release();
-                return card;
+            bool ready = !wait && r.model.can_queue_load && !r.requests.loading();
+            if (ready && lower(text).starts_with("load ")) {
+                const auto wanted = lower(text.substr(5, text.find(' ', 5) == std::string::npos ? std::string::npos : text.find(' ', 5) - 5));
+                ready = std::ranges::any_of(r.model.levels, [&](const dingosdk::overlay::Level& level) {
+                    return level.can_load && (lower(level.asset).find(wanted) != std::string::npos ||
+                                              lower(level.display_name) == wanted);
+                });
             }
-            // KiB for the pool on this card, or 0 to keep the game's own value.
-            std::uint32_t size_kb(std::uint64_t memory) {
-                // Cards report a little under or over their nominal size.
-                constexpr std::uint64_t six_gib = 6ull << 30, twelve_gib = 12ull << 30, slack = 256ull << 20;
-                if (memory <= six_gib + slack) return 0;
-                const auto most = memory <= twelve_gib + slack ? most_to_12gb_kb : most_kb;
-                return static_cast<std::uint32_t>(std::clamp<std::uint64_t>(memory / 4 / 1024, stock_kb, most));
+            if (ready && r.requests.enqueue(ConsoleRequest{text}, request_context(r), GetCurrentThreadId())) {
+                dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::level,
+                    "Startup command queued: {}", text);
+                startup_commands->erase(startup_commands->begin());
             }
         }
-        void apply_mesh_streaming_pool() {
-            static const auto card = mesh_pool::largest_card();
-            static const auto pool_kb = mesh_pool::size_kb(card.memory);
-            static bool reported = false;
-            if (!reported) {
-                reported = true;
-                dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::runtime,
-                    "Mesh streaming pool: {} for {} ({:.1f} GB of video memory).",
-                    pool_kb ? std::format("{} MB", pool_kb / 1024) : std::string("the game's own 520 MB"),
-                    card.name.empty() ? std::string("an unknown card") : card.name, static_cast<double>(card.memory) / (1ull << 30));
-            }
-            if (!pool_kb) return;
-            static ULONGLONG next_check = 0;
-            static std::string last_result;
-            const auto now = GetTickCount64();
-            if (now < next_check) return;
-            next_check = now + 2000;
-            try {
-                const auto result = dingosdk::change_named_setting("MeshStreaming.PoolSize", std::to_string(pool_kb), false);
-                if (result.starts_with("error: ")) { next_check = now + 500; return; }
-                if (result != last_result && !result.ends_with("(unchanged)"))
-                    dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::runtime,
-                        "Mesh streaming pool raised for big custom maps (applies from the next level load): {}", result);
-                last_result = result;
-            }
-            catch (...) {}
+    }
+    std::optional<ConsoleRequest> console_command;
+    {
+        std::lock_guard lock(r.mutex);
+        console_command = r.requests.take<ConsoleRequest>(GetCurrentThreadId());
+    }
+    if (console_command) {
+        ScheduledWorkScope work{r, true};
+        const auto started = std::chrono::steady_clock::now();
+        execute_console_command(console_command->text);
+        const auto executed = std::chrono::steady_clock::now();
+        refresh_interactive_model(client, state, game_type);
+        const auto published = std::chrono::steady_clock::now();
+        const auto milliseconds = [](auto duration) { return std::chrono::duration<double, std::milli>(duration).count(); };
+        record("{\"event\":\"menu_command_timing\",\"queue_ms\":" +
+            std::to_string(milliseconds(started - console_command->queued_at)) + ",\"execute_ms\":" +
+            std::to_string(milliseconds(executed - started)) + ",\"publish_ms\":" +
+            std::to_string(milliseconds(published - executed)) + "}");
+    }
+    const auto now = GetTickCount64();
+    bool has_request{};
+    { std::lock_guard lock(r.mutex); has_request = r.requests.pending_load(); }
+    // Camera phase validation is necessary before camera/motion operations,
+    // not on every idle frame. Validate afresh after any action in this tick
+    // that can have changed the native camera's identity (frame.camera_issue is
+    // cleared then); until one runs, the first check serves the whole tick.
+    const auto camera_phase_issue = [&]() -> const char* {
+        if (!frame.camera_issue) {
+            std::uintptr_t context{};
+            frame.camera_issue = read(client + 8, context) ? dingosdk::camera_probe_unavailable_reason(context) :
+                "Waiting for the local camera context.";
         }
-        void apply_throwdown_modes() {
-            // The throwdowner flow picks between the mode-select page and straight Jam
-            // placement by reading these by name (GetBoolSetting). Retail receives them
-            // from live config; S.K.A.T.E. ships off in the native constructor. Go
-            // through the named setter so registered setting listeners are notified.
-            static bool applied = false;
-            static ULONGLONG next_attempt = 0;
-            static std::string last_result;
-            if (applied) return;
-            const auto now = GetTickCount64();
-            if (now < next_attempt) return;
-            next_attempt = now + 500;
-            try {
-                bool pending = false;
-                std::string results;
-                // EnableAdvancedParameters adds the host's Customize button and the
-                // parameter panel (players, timer, privacy, scored actions) to the
-                // throwdown details page; it also ships off.
-                for (const auto* name : { "DingoThrowdowns.EnableSpotBattle", "DingoThrowdowns.EnableSKATE",
-                                         "DingoThrowdowns.EnableAdvancedParameters" }) {
-                    const auto result = dingosdk::change_named_setting(name, "1", false);
-                    pending = pending || result.starts_with("error: ");
-                    results += (results.empty() ? "" : " | ") + result;
-                }
-                {
-                    // Local play has nobody to wait for: with the single-player queue
-                    // enabled (native_throwdowns.cpp) the 120 s join countdown would only
-                    // delay the host. Revisit when throwdowns are relayed to other players.
-                    const auto result = dingosdk::change_named_setting("DingoThrowdowns.QueueStartTimer", "1", false);
-                    pending = pending || result.starts_with("error: ");
-                    results += " | " + result;
-                }
-                if (results != last_result) {
-                    last_result = results;
-                    dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::progression,
-                        "Throwdown modes: {}", results);
-                }
-                applied = !pending;
-            }
-            catch (...) {}
+        return *frame.camera_issue;
+    };
+    const auto camera_phase_ready = [&] { return camera_phase_issue() == nullptr; };
+    std::optional<dingosdk::overlay::DebugRequest> debug_request;
+    bool debug_busy{}, controller_busy{};
+    std::uint32_t freecam_controller_combo{}, freecam_combo{}, tp_to_freecam_combo{}, noclip_combo{}, forward_velocity_combo{}, up_velocity_combo{}, offboard_up_velocity_combo{};
+    // Yes and No in a dedicated server's vote: read only while one is running.
+    std::uint32_t vote_yes_combo{}, vote_no_combo{};
+    // The switches on buttons (action_binds): each runs its console command.
+    std::array<std::uint32_t, dingosdk::action_binds.size()> action_combos{};
+    const bool vote_open = dingosdk::multiplayer::server_vote_open();
+    const unsigned poll_answers = dingosdk::multiplayer::server_poll_answers();
+    bool freecam_controller = dingosdk::local_freecam_controller();
+    {
+        std::lock_guard lock(r.mutex);
+        debug_busy = r.requests.loading();
+        controller_busy = !r.requests.idle();
+        freecam_controller_combo = r.model.bindings.available ? r.model.bindings.freecam_controller_combo : 0;
+        freecam_combo = r.model.bindings.available ? r.model.bindings.freecam_combo : 0;
+        tp_to_freecam_combo = r.model.bindings.available ? r.model.bindings.tp_to_freecam_combo : 0;
+        noclip_combo = r.model.bindings.available ? r.model.bindings.noclip_combo : 0;
+        forward_velocity_combo = r.model.bindings.available ? r.model.bindings.forward_velocity_combo : 0;
+        up_velocity_combo = r.model.bindings.available ? r.model.bindings.up_velocity_combo : 0;
+        offboard_up_velocity_combo = r.model.bindings.available ? r.model.bindings.offboard_up_velocity_combo : 0;
+        if (r.model.bindings.available) action_combos = r.model.bindings.action_combos;
+        if (vote_open && r.model.bindings.available) {
+            vote_yes_combo = r.model.bindings.vote_yes_combo;
+            vote_no_combo = r.model.bindings.vote_no_combo;
         }
-        void update_model(std::uintptr_t client, TickState& frame) {
-            auto& r = runtime();
-            std::uintptr_t vtable{};
-            DWORD state{}, game_type{};
-            // Every client tick: peeked, not read (three ReadProcessMemory calls a tick, profiled 2026-10-02).
-            if (!memory::peek(client, vtable) || vtable != r.base + engine::client_vtable || client > highest - 0x2a0 ||
-                !memory::peek(client + 0xc4, state) || state > 26 || !memory::peek(client + 0xc0, game_type) || game_type > 3) return;
-            DWORD no_thread{};
-            r.engine_thread.compare_exchange_strong(no_thread, GetCurrentThreadId());
-            if (r.engine_thread.load() != GetCurrentThreadId()) return;
-            frame.valid = true;
-            frame.state = state;
-            frame.game_type = game_type;
-            // Some two dozen native reads: one result serves the whole tick.
-            const auto native_context_ready = [&] {
-                if (!frame.context) frame.context = native_context(r.base, client, game_type);
-                return *frame.context;
-                };
-            // Engine settings are only shown by the menu and console; refresh them
-            // quickly (and hand them over) only while one of them is reading.
-            const auto settings_now = GetTickCount64();
-            const bool settings_wanted = settings_now < r.named_settings_wanted_until.load(std::memory_order_relaxed);
-            dingosdk::refresh_named_settings(settings_wanted);
-            apply_throwdown_modes();
-            apply_performance_settings();
-            dingosdk::job_spin::apply_default();
-            apply_mesh_streaming_pool();
-            dingosdk::multiplayer::apply_throwdown_strings(r.base);
-            const bool named_context_ready = (state == 13 || state == 21) && native_context_ready();
-            {
-                std::lock_guard lock(r.mutex);
-                r.named_context_ready = named_context_ready;
-            }
-            if (settings_wanted && settings_now >= r.next_named_settings_publish) {
-                r.next_named_settings_publish = settings_now + 250;
-                publish_named_settings(r);
-            }
-            // RESKATE_STARTUP_COMMANDS="load skate1map;noclip 1" (development): console commands
-            // queued in order once the world is up and can accept them, so a build can be exercised
-            // without anyone driving the overlay. A load waits for its destination to be listed.
-            {
-                static std::optional<std::vector<std::string>> startup_commands;
-                if (!startup_commands) {
-                    startup_commands.emplace();
-                    std::wstring value(4096, L'\0');
-                    const auto length = GetEnvironmentVariableW(L"RESKATE_STARTUP_COMMANDS", value.data(), 4096);
-                    if (length && length < 4096) {
-                        std::string narrow;
-                        for (const auto character : value.substr(0, length))
-                            narrow.push_back(character < 128 ? static_cast<char>(character) : '?');
-                        for (std::size_t start = 0; start <= narrow.size();) {
-                            auto end = narrow.find(';', start);
-                            if (end == std::string::npos) end = narrow.size();
-                            auto piece = narrow.substr(start, end - start);
-                            const auto first = piece.find_first_not_of(" \t");
-                            const auto last = piece.find_last_not_of(" \t");
-                            if (first != std::string::npos) startup_commands->push_back(piece.substr(first, last - first + 1));
-                            start = end + 1;
-                        }
-                    }
-                }
-                if (!startup_commands->empty() && named_context_ready) {
-                    std::lock_guard lock(r.mutex);
-                    const auto& text = startup_commands->front();
-                    const auto lower = [](std::string value) {
-                        for (auto& character : value) character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
-                        return value;
-                        };
-                    // "wait <seconds>" pauses the list, e.g. to let a multiplayer join finish.
-                    static std::optional<std::chrono::steady_clock::time_point> wait_until;
-                    const bool wait = lower(text).starts_with("wait ");
-                    if (wait) {
-                        const auto now = std::chrono::steady_clock::now();
-                        if (!wait_until) wait_until = now + std::chrono::milliseconds(static_cast<int>(1000 * std::atof(text.c_str() + 5)));
-                        if (now >= *wait_until) {
-                            wait_until.reset();
-                            startup_commands->erase(startup_commands->begin());
-                        }
-                    }
-                    bool ready = !wait && r.model.can_queue_load && !r.requests.loading();
-                    if (ready && lower(text).starts_with("load ")) {
-                        const auto wanted = lower(text.substr(5, text.find(' ', 5) == std::string::npos ? std::string::npos : text.find(' ', 5) - 5));
-                        ready = std::ranges::any_of(r.model.levels, [&](const dingosdk::overlay::Level& level) {
-                            return level.can_load && (lower(level.asset).find(wanted) != std::string::npos ||
-                                lower(level.display_name) == wanted);
-                            });
-                    }
-                    if (ready && r.requests.enqueue(ConsoleRequest{ text }, request_context(r), GetCurrentThreadId())) {
-                        dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::level,
-                            "Startup command queued: {}", text);
-                        startup_commands->erase(startup_commands->begin());
-                    }
-                }
-            }
-            std::optional<ConsoleRequest> console_command;
-            {
-                std::lock_guard lock(r.mutex);
-                console_command = r.requests.take<ConsoleRequest>(GetCurrentThreadId());
-            }
-            if (console_command) {
-                ScheduledWorkScope work{ r, true };
-                const auto started = std::chrono::steady_clock::now();
-                execute_console_command(console_command->text);
-                const auto executed = std::chrono::steady_clock::now();
-                refresh_interactive_model(client, state, game_type);
-                const auto published = std::chrono::steady_clock::now();
-                const auto milliseconds = [](auto duration) { return std::chrono::duration<double, std::milli>(duration).count(); };
-                record("{\"event\":\"menu_command_timing\",\"queue_ms\":" +
-                    std::to_string(milliseconds(started - console_command->queued_at)) + ",\"execute_ms\":" +
-                    std::to_string(milliseconds(executed - started)) + ",\"publish_ms\":" +
-                    std::to_string(milliseconds(published - executed)) + "}");
-            }
-            const auto now = GetTickCount64();
-            bool has_request{};
-            { std::lock_guard lock(r.mutex); has_request = r.requests.pending_load(); }
-            // Camera phase validation is necessary before camera/motion operations,
-            // not on every idle frame. Validate afresh after any action in this tick
-            // that can have changed the native camera's identity (frame.camera_issue is
-            // cleared then); until one runs, the first check serves the whole tick.
-            const auto camera_phase_issue = [&]() -> const char* {
-                if (!frame.camera_issue) {
-                    std::uintptr_t context{};
-                    frame.camera_issue = read(client + 8, context) ? dingosdk::camera_probe_unavailable_reason(context) :
-                        "Waiting for the local camera context.";
-                }
-                return *frame.camera_issue;
-                };
-            const auto camera_phase_ready = [&] { return camera_phase_issue() == nullptr; };
-            std::optional<dingosdk::overlay::DebugRequest> debug_request;
-            bool debug_busy{}, controller_busy{};
-            std::uint32_t freecam_controller_combo{}, freecam_combo{}, tp_to_freecam_combo{}, noclip_combo{}, forward_velocity_combo{}, up_velocity_combo{}, offboard_up_velocity_combo{};
-            // Yes and No in a dedicated server's vote: read only while one is running.
-            std::uint32_t vote_yes_combo{}, vote_no_combo{};
-            // The switches on buttons (action_binds): each runs its console command.
-            std::array<std::uint32_t, dingosdk::action_binds.size()> action_combos{};
-            const bool vote_open = dingosdk::multiplayer::server_vote_open();
-            bool freecam_controller = dingosdk::local_freecam_controller();
-            {
-                std::lock_guard lock(r.mutex);
-                debug_busy = r.requests.loading();
-                controller_busy = !r.requests.idle();
-                freecam_controller_combo = r.model.bindings.available ? r.model.bindings.freecam_controller_combo : 0;
-                freecam_combo = r.model.bindings.available ? r.model.bindings.freecam_combo : 0;
-                tp_to_freecam_combo = r.model.bindings.available ? r.model.bindings.tp_to_freecam_combo : 0;
-                noclip_combo = r.model.bindings.available ? r.model.bindings.noclip_combo : 0;
-                forward_velocity_combo = r.model.bindings.available ? r.model.bindings.forward_velocity_combo : 0;
-                up_velocity_combo = r.model.bindings.available ? r.model.bindings.up_velocity_combo : 0;
-                offboard_up_velocity_combo = r.model.bindings.available ? r.model.bindings.offboard_up_velocity_combo : 0;
-                if (r.model.bindings.available) action_combos = r.model.bindings.action_combos;
-                if (vote_open && r.model.bindings.available) {
-                    vote_yes_combo = r.model.bindings.vote_yes_combo;
-                    vote_no_combo = r.model.bindings.vote_no_combo;
-                }
+        debug_request = r.requests.take<dingosdk::overlay::DebugRequest>(GetCurrentThreadId());
+    }
+    // Capture belongs to the freecam state itself. Keep it active across brief
+    // request/loading phases instead of opening a path back to player input.
+    DingoSDKOverlaySetFreecamInputCapture(dingosdk::client_free_camera_active() && freecam_controller);
+    dingosdk::ControllerInput controller;
+    if (freecam_controller_combo || freecam_combo || tp_to_freecam_combo || noclip_combo || forward_velocity_combo || up_velocity_combo || offboard_up_velocity_combo ||
+        vote_yes_combo || vote_no_combo || poll_answers || std::ranges::any_of(action_combos, [](auto combo) { return combo != 0; }))
+        DingoSDKOverlayReadControllerInput(&controller);
+    for (std::size_t i = 0; i < action_combos.size(); ++i)
+        if (r.action_bind_latches[i].update(action_combos[i], controller, r.observer_failed)) {
+            std::array<char, 256> result{};
+            const std::string command(dingosdk::action_binds[i].command);
+            if (queue_console_command(nullptr, command.c_str(), result.data(), result.size()))
+                record(("{\"event\":\"controller_binding_triggered\",\"action\":\"" + std::string(dingosdk::action_binds[i].key) + "\"}").c_str());
+        }
+    // (The input reads as nothing while the menu, the console or the chat box is open, so typing
+    // a bound key answers no vote.)
+    if (r.vote_yes_bind_latch.update(vote_yes_combo, controller, !vote_open) && dingosdk::multiplayer::queue_command("vote", "yes", ""))
+        record("{\"event\":\"controller_binding_triggered\",\"action\":\"vote_yes\"}");
+    if (r.vote_no_bind_latch.update(vote_no_combo, controller, !vote_open) && dingosdk::multiplayer::queue_command("vote", "no", ""))
+        record("{\"event\":\"controller_binding_triggered\",\"action\":\"vote_no\"}");
+    // A poll's answers are on the number keys, 1 for the first: only while one is running, so
+    // the keys are the game's own the rest of the time.
+    for (unsigned answer = 0; answer < r.poll_answer_latches.size(); ++answer) {
+        const std::uint32_t key = answer < poll_answers ? dingosdk::keyboard_binding_tag | ('1' + answer) : 0U;
+        const char number[2]{static_cast<char>('1' + answer), 0};
+        if (r.poll_answer_latches[answer].update(key, controller, !poll_answers) && dingosdk::multiplayer::queue_command("vote", number, ""))
+            record("{\"event\":\"controller_binding_triggered\",\"action\":\"poll_answer\"}");
+    }
+    
+    if (r.freecam_controller_bind_latch.update(freecam_controller_combo, controller, r.observer_failed || controller_busy || !r.debug_model.free_camera)) {
+        if (dingosdk::set_local_freecam_controller(!freecam_controller))
+            freecam_controller = !freecam_controller;
+        DingoSDKOverlaySetFreecamInputCapture(dingosdk::client_free_camera_active() && freecam_controller);
+        record("{\"event\":\"controller_binding_triggered\",\"action\":\"freecam_controller\"}");
+    }
+    
+    if (r.tp_to_freecam_bind_latch.update(tp_to_freecam_combo, controller, r.observer_failed || controller_busy || !r.debug_model.free_camera || !r.debug_model.camera_position_valid || debug_request.has_value())) {
+        if (dingosdk::teleport_local_skater(r.debug_model.camera_position)) {
+            std::lock_guard lock(r.mutex);
+            const dingosdk::overlay::DebugRequest request{dingosdk::overlay::DebugAction::set_free_camera, false};
+            if (r.requests.enqueue(request, request_context(r), GetCurrentThreadId()))
                 debug_request = r.requests.take<dingosdk::overlay::DebugRequest>(GetCurrentThreadId());
-            }
-            // Capture belongs to the freecam state itself. Keep it active across brief
-            // request/loading phases instead of opening a path back to player input.
-            DingoSDKOverlaySetFreecamInputCapture(dingosdk::client_free_camera_active() && freecam_controller);
-            dingosdk::ControllerInput controller;
-            if (freecam_controller_combo || freecam_combo || tp_to_freecam_combo || noclip_combo || forward_velocity_combo || up_velocity_combo || offboard_up_velocity_combo ||
-                vote_yes_combo || vote_no_combo || std::ranges::any_of(action_combos, [](auto combo) { return combo != 0; }))
-                DingoSDKOverlayReadControllerInput(&controller);
-            for (std::size_t i = 0; i < action_combos.size(); ++i)
-                if (r.action_bind_latches[i].update(action_combos[i], controller, r.observer_failed)) {
-                    std::array<char, 256> result{};
-                    const std::string command(dingosdk::action_binds[i].command);
-                    if (queue_console_command(nullptr, command.c_str(), result.data(), result.size()))
-                        record(("{\"event\":\"controller_binding_triggered\",\"action\":\"" + std::string(dingosdk::action_binds[i].key) + "\"}").c_str());
-                }
-            // (The input reads as nothing while the menu, the console or the chat box is open, so typing
-            // a bound key answers no vote.)
-            if (r.vote_yes_bind_latch.update(vote_yes_combo, controller, !vote_open) && dingosdk::multiplayer::queue_command("vote", "yes", ""))
-                record("{\"event\":\"controller_binding_triggered\",\"action\":\"vote_yes\"}");
-            if (r.vote_no_bind_latch.update(vote_no_combo, controller, !vote_open) && dingosdk::multiplayer::queue_command("vote", "no", ""))
-                record("{\"event\":\"controller_binding_triggered\",\"action\":\"vote_no\"}");
-
-            if (r.freecam_controller_bind_latch.update(freecam_controller_combo, controller, r.observer_failed || controller_busy || !r.debug_model.free_camera)) {
-                if (dingosdk::set_local_freecam_controller(!freecam_controller))
-                    freecam_controller = !freecam_controller;
-                DingoSDKOverlaySetFreecamInputCapture(dingosdk::client_free_camera_active() && freecam_controller);
-                record("{\"event\":\"controller_binding_triggered\",\"action\":\"freecam_controller\"}");
-            }
-
-            if (r.tp_to_freecam_bind_latch.update(tp_to_freecam_combo, controller, r.observer_failed || controller_busy || !r.debug_model.free_camera || !r.debug_model.camera_position_valid || debug_request.has_value())) {
-                if (dingosdk::teleport_local_skater(r.debug_model.camera_position)) {
-                    std::lock_guard lock(r.mutex);
-                    const dingosdk::overlay::DebugRequest request{ dingosdk::overlay::DebugAction::set_free_camera, false };
-                    if (r.requests.enqueue(request, request_context(r), GetCurrentThreadId()))
-                        debug_request = r.requests.take<dingosdk::overlay::DebugRequest>(GetCurrentThreadId());
-                }
-                record("{\"event\":\"controller_binding_triggered\",\"action\":\"tp_to_freecam\"}");
-            }
-
-            const bool freecam_bind_blocked = r.observer_failed || controller_busy || debug_request.has_value() ||
-                (state != 13 && state != 21) || !r.debug_model.camera_available ||
-                (freecam_combo && !camera_phase_ready());
-            if (r.freecam_bind_latch.update(freecam_combo, controller, freecam_bind_blocked)) {
-                {
-                    std::lock_guard lock(r.mutex);
-                    const dingosdk::overlay::DebugRequest request{ dingosdk::overlay::DebugAction::set_free_camera, !r.debug_model.free_camera };
-                    if (r.requests.enqueue(request, request_context(r), GetCurrentThreadId()))
-                        debug_request = r.requests.take<dingosdk::overlay::DebugRequest>(GetCurrentThreadId());
-                }
-                record("{\"event\":\"controller_binding_triggered\",\"action\":\"freecam\"}");
-            }
+        }
+        record("{\"event\":\"controller_binding_triggered\",\"action\":\"tp_to_freecam\"}");
+    }
+    
+    const bool freecam_bind_blocked = r.observer_failed || controller_busy || debug_request.has_value() ||
+        (state != 13 && state != 21) || !r.debug_model.camera_available ||
+        (freecam_combo && !camera_phase_ready());
+    if (r.freecam_bind_latch.update(freecam_combo, controller, freecam_bind_blocked)) {
+        {
+            std::lock_guard lock(r.mutex);
+            const dingosdk::overlay::DebugRequest request{dingosdk::overlay::DebugAction::set_free_camera, !r.debug_model.free_camera};
+            if (r.requests.enqueue(request, request_context(r), GetCurrentThreadId()))
+                debug_request = r.requests.take<dingosdk::overlay::DebugRequest>(GetCurrentThreadId());
+        }
+        record("{\"event\":\"controller_binding_triggered\",\"action\":\"freecam\"}");
+    }
 
             const bool bind_blocked = r.observer_failed || controller_busy || debug_request.has_value() ||
                 (state != 13 && state != 21) || !r.debug_model.noclip_available ||
@@ -551,8 +557,7 @@ namespace dingosdk::runtime::detail {
                     dingosdk::logging::log(dingosdk::logging::Level::warning, dingosdk::logging::Channel::skater,
                         "{} unavailable: {}", debug.camera_available ? "Noclip" : "Freecam and Noclip", issue);
                     r.flight_unavailable_logged = issue;
-                }
-                else if (debug.noclip_available && !r.flight_unavailable_logged.empty()) {
+                } else if (debug.noclip_available && !r.flight_unavailable_logged.empty()) {
                     dingosdk::logging::write(dingosdk::logging::Level::info, dingosdk::logging::Channel::skater,
                         "Freecam and Noclip are available again.");
                     r.flight_unavailable_logged.clear();
@@ -708,8 +713,7 @@ namespace dingosdk::runtime::detail {
                     std::lock_guard lock(r.mutex);
                     r.model.editor = std::move(editor);
                     ++r.model_revision;
-            }
-            else {
+            } else {
                 // Other players' objects still to be created: queue the next as soon as the
                 // last one is in, not at the 500 ms customization pace.
                 DINGO_PROFILE_ZONE("tick/update_model/network objects");

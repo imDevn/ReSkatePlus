@@ -7,10 +7,7 @@
 #include "Engine/Core/Log/logging.h"
 
 #include <cstdio>
-#include <fstream>
-#include <iterator>
 #include <format>
-#include <Engine/Core/Json/json.h>
 
 // The Mods panel's BROWSE page: packages from Thunderstore, their icons, and
 // downloading and installing them on the panel's worker.
@@ -56,10 +53,10 @@ std::vector<ts::Package> fetch_listing(const std::string& community, const std::
 }
 
 fs::path icon_cache() {
-    wchar_t local[MAX_PATH]{};
-    const auto length = GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH);
-    if (!length || length >= MAX_PATH) return {};
-    return fs::path(local) / L"ReSkate" / L"thunderstore" / L"icons";
+    std::array<wchar_t, 32768> local{};
+    const auto length = GetEnvironmentVariableW(L"LOCALAPPDATA", local.data(), static_cast<DWORD>(local.size()));
+    if (!length || length >= local.size()) return {};
+    return fs::path(local.data()) / L"ReSkate" / L"thunderstore" / L"icons";
 }
 
 // Icon URLs end in Namespace-Name-1.2.3.png, so a file name keyed on that never goes stale.
@@ -77,7 +74,7 @@ std::vector<unsigned char> read_bytes(const fs::path& path) {
     std::vector<unsigned char> bytes;
     FILE* file{};
     if (_wfopen_s(&file, path.c_str(), L"rb") || !file) return bytes;
-    std::array<unsigned char, 8192> buffer{};
+    std::array<unsigned char, 65536> buffer{};
     for (std::size_t read; (read = std::fread(buffer.data(), 1, buffer.size(), file)) > 0;)
         bytes.insert(bytes.end(), buffer.begin(), buffer.begin() + static_cast<std::ptrdiff_t>(read));
     std::fclose(file);
@@ -200,26 +197,14 @@ std::string install_package(ModsPanel& panel, const fs::path& root, const ts::Pa
 
 // Search, category and the sort order, pinned packages first like the site.
 std::vector<const ts::Package*> visible_packages(const Store& store, const ts::Installed& installed) {
-    wchar_t path[MAX_PATH]{};
-    const auto length = GetModuleFileNameW(nullptr, path, MAX_PATH);
-    if (!length || length >= MAX_PATH) return {};
-    const auto root = std::filesystem::canonical(std::filesystem::path(std::wstring(path, length))).parent_path();
-    const auto settings_path = root / L"ReSkate.settings.json";
-    Json settings = Json::object();
-    if (std::filesystem::exists(settings_path)) {
-        std::ifstream file(settings_path, std::ios::binary);
-        std::string contents;
-        contents.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-        settings = Json::parse(std::string_view(contents.data(), contents.size()));
-    }
-    const bool show_deprecated = settings.value("show_deprecated", false);
-    const bool show_nsfw = settings.value("show_nsfw", false);
+    //const bool show_deprecated = settings.value("show_deprecated", false);
+    //const bool show_nsfw = settings.value("show_nsfw", false);
     const auto query = lower(store.search.data());
     std::vector<const ts::Package*> result;
     for (const auto& package : store.packages) {
         const bool have = installed.contains(ts::folder_for(package.full_name));
         // Deprecated and NSFW packages only show once installed.
-        if (((package.deprecated && !show_deprecated) || (package.nsfw && !show_nsfw)) && !have) continue;
+        if (/*((package.deprecated && !show_deprecated) || (package.nsfw && !show_nsfw)) && !*/have) continue;
         if (!store.category.empty() && !package.in_category(store.category)) continue;
         if (!query.empty() && lower(package.title()).find(query) == std::string::npos &&
             lower(package.owner).find(query) == std::string::npos &&

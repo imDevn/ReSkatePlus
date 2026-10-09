@@ -339,7 +339,8 @@ void Launcher::run_check() {
         fail("ReSkatePlus.dll is missing from the game folder.");
         return;
     }
-    set(Phase::ready, "Ready to skate", !settings_.updates ? (newer ? "ReSkate+ updates are off; keeping your ReSkate+ files." : "ReSkate+ updates are off.")
+    set(Phase::ready, "Ready to skate", !config ? "Offline: Update check skipped."
+        : !settings_.updates ? (newer ? "ReSkate+ updates are off; keeping your ReSkate+ files." : "ReSkate+ updates are off.")
         : "Up to date.");
 }
 

@@ -1,12 +1,6 @@
-#include "skate_menu_internal.h"
 #include "multiplayer_menu_internal.h"
-
-#include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
-#include <format>
-#include <vector>
 
 // The SKATER page.
 namespace dingosdk::overlay::menu {
@@ -142,11 +136,11 @@ namespace dingosdk::overlay::menu {
         end_card();
     }
 
-    void movement_controls(SkateMenu& menu, const Model& model, const CallbacksV3& callbacks) {
-        const auto& debug = model.debug;
-        begin_card(menu, "movement", "FLIGHT & BAILS");
-        bool noclip = debug.noclip;
-        if (toggle_row(menu, "Noclip", "Fly with the normal player camera. Includes No Bail; uses the Freecam flight speed.", noclip,
+void movement_controls(SkateMenu& menu, const Model& model, const CallbacksV3& callbacks) {
+    const auto& debug = model.debug;
+    begin_card(menu, "movement", "FLIGHT & BAILS");
+    bool noclip = debug.noclip;
+    if (toggle_row(menu, "Noclip", "Fly with the normal player camera. Includes No Bail; uses the Freecam flight speed.", noclip,
             (debug.noclip_available || debug.noclip) && callbacks.queue_debug))
             debug_request(menu, callbacks, { DebugAction::set_noclip, noclip });
         if (!debug.noclip_available && !debug.noclip) note(debug.noclip_unavailable.c_str());
@@ -158,18 +152,18 @@ namespace dingosdk::overlay::menu {
             : "Prevent new wipeouts. Recover from any current bail before enabling.";
         if (toggle_row(menu, "No Bail", bail_help, no_bail,
             (debug.no_bail_available || debug.no_bail) && callbacks.queue_debug))
-            debug_request(menu, callbacks, { DebugAction::set_no_bail, no_bail });
-        bool hall_of_meat = model.hall_of_meat.enabled;
-        // No Bail (and noclip, which includes it) stops the bails Hall of Meat scores.
-        const bool bails_off = debug.no_bail || debug.no_bail_active;
-        const char* meat_help = hall_of_meat && bails_off
-            ? "On, but No Bail is stopping your bails, so nothing shows. Turn No Bail (and noclip) off to use it."
-            : bails_off
-            ? "Your bails show the bones they hurt and score a Meat card. Needs No Bail (and noclip) off."
-            : "Your bails show the bones they hurt and score a Meat card. A break slows the game in single player.";
-        if (toggle_row(menu, "Hall of Meat", meat_help, hall_of_meat, model.hall_of_meat.available && callbacks.queue_console_command))
-            send_console(menu, callbacks, hall_of_meat ? "hallofmeat 1" : "hallofmeat 0");
-        end_card();
+        debug_request(menu, callbacks, {DebugAction::set_no_bail, no_bail});
+    bool hall_of_meat = model.hall_of_meat.enabled;
+    // No Bail (and noclip, which includes it) stops the bails Hall of Meat scores.
+    const bool bails_off = debug.no_bail || debug.no_bail_active;
+    const char* meat_help = hall_of_meat && bails_off
+        ? "On, but No Bail is stopping your bails, so nothing shows. Turn No Bail (and noclip) off to use it."
+        : bails_off
+        ? "Your bails show the bones they hurt and score a Meat card. Needs No Bail (and noclip) off."
+        : "Your bails show the bones they hurt and score a Meat card. A break slows the game in single player.";
+    if (toggle_row(menu, "Hall of Meat", meat_help, hall_of_meat, model.hall_of_meat.available && callbacks.queue_console_command))
+        send_console(menu, callbacks, hall_of_meat ? "hallofmeat 1" : "hallofmeat 0");
+    end_card();
 
     begin_card(menu, "boosts", "BOOSTS", "Buttons are set in Settings > Controls");
     ImGui::BeginDisabled(!callbacks.queue_debug);
@@ -181,6 +175,10 @@ namespace dingosdk::overlay::menu {
     float up_velocity = debug.up_velocity_speed;
     if (ImGui::SliderFloat("##up-velocity", &up_velocity, 1.0f, 25.0f, "+%.1f", ImGuiSliderFlags_AlwaysClamp))
         debug_request(menu, callbacks, {DebugAction::set_up_velocity_speed, false, up_velocity});
+    field(menu, "Off-board up boost");
+    float offboard_up_velocity = debug.offboard_up_velocity_speed;
+    if (ImGui::SliderFloat("##offboard-up-velocity", &offboard_up_velocity, 1.0f, 25.0f, "+%.1f", ImGuiSliderFlags_AlwaysClamp))
+        debug_request(menu, callbacks, {DebugAction::set_offboard_up_velocity_speed, false, offboard_up_velocity});
     ImGui::EndDisabled();
     note("Controller: left stick moves, right stick looks, RT / LT rise and fall, click the left stick to boost.");
     note("Keyboard: WASD / Q E, Shift to boost. Close the menu to fly.");
@@ -188,7 +186,6 @@ namespace dingosdk::overlay::menu {
 }
 
 void wardrobe_colour_controls(SkateMenu& menu, const Model& model) {
-    using namespace multiplayer_detail;
     const auto& mp = model.multiplayer;
     if (mp.identity_styles.empty()) {
         note("Wardrobe colours are still loading. Enter a map, then reopen this tab.");
@@ -228,11 +225,11 @@ void wardrobe_colour_controls(SkateMenu& menu, const Model& model) {
         }
 
         const auto send = [&](int mode, int speed) {
-            send_private(menu, "mark-style",
+            multiplayer_detail::send_private(menu, "mark-style",
                 std::format("{} {} {:06x} {:06x} {}", item, mode, hex(picked.from), hex(picked.to), speed),
                 unused, false);
             picked.waiting = 120;
-            };
+        };
 
         std::string title = style.name;
         for (auto& letter : title) letter = static_cast<char>(std::toupper(static_cast<unsigned char>(letter)));

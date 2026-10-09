@@ -207,6 +207,8 @@ std::vector<bool> stale_pose_deltas(Session &s, const std::vector<TransportMessa
     std::vector<Stream> streams;
     for (auto i = messages.size(); i-- > 0;) {
         const auto &bytes = messages[i].bytes;
+        // (A dedicated server sends none of these: what it sends that starts the same is sound.)
+        if (dedicated_host(s) && messages[i].peer == s.host_id) continue;
         // Sparse pose patches (delta_codec.cpp): "RMS1"/"RMS2", source at 4, kind at 20.
         if (bytes.size() <= 34 || bytes[0] != 'R' || bytes[1] != 'M' || bytes[2] != 'S' ||
             (bytes[3] != '1' && bytes[3] != '2'))
@@ -277,6 +279,9 @@ void apply_roster(Session &s, const Packet &p, std::uint64_t now) {
     apply_guest_tools(s, p.guest_noclip, p.guest_no_bail, p.guest_boosts);
     s.enforce_tuning = p.enforce_tuning;
     s.server_votes = dedicated_host(s) ? p.server_votes : 0;
+    s.server_polls = dedicated_host(s) ? p.server_polls : 0;
+    if (dedicated_host(s)) s.server_custom_votes = p.server_custom_votes;
+    else s.server_custom_votes.clear();
     publish_chat(s); // the "/" list follows the server's votes, its players and its maps
     if (s.object_clears && *s.object_clears != p.object_clears) s.clear_pending = true;
     s.object_clears = p.object_clears;
@@ -310,13 +315,24 @@ void apply_roster(Session &s, const Packet &p, std::uint64_t now) {
     s.roster_voice_range = p.voice_range;
     s.server_chat_badge = p.chat_badge;
     s.server_chat_text = p.chat_text;
-    // The server's vote. A new one starts with no answer from this player, unless they started it.
+    // The server's vote. A new one starts with no answer from this player, unless they started
+    // it and the server counts that as a yes. A poll they started they still answer.
     if (dedicated_host(s)) {
         const auto local = s.transport.status().local_id;
-        if (p.vote.id != s.vote.id) s.vote_mine = p.vote.id && p.vote.starter == local ? 1 : 0;
+        const bool poll = p.vote.kind == server_vote_poll;
+        if (p.vote.id != s.vote.id) s.vote_mine = p.vote.id && !poll && p.vote.starter == local && p.vote.yes ? 1 : 0;
         s.vote = p.vote;
         s.vote_ends = now_us() + std::uint64_t{p.vote.seconds} * 1000000;
-        server_vote_open_flag.store(p.vote.id && p.vote.outcome == vote_running && p.vote.target != local, std::memory_order_relaxed);
+        // The Yes and No binds answer a yes/no vote; a poll is answered with the number keys, on
+        // its card or with /1, /2...
+        server_vote_open_flag.store(p.vote.id && !poll && p.vote.outcome == vote_running && p.vote.target != local,
+                                    std::memory_order_relaxed);
+        server_poll_answers_flag.store(p.vote.id && poll && p.vote.outcome == vote_running
+                                           ? static_cast<unsigned>(std::min(p.vote.answers.size(), max_vote_answers)) : 0U,
+                                       std::memory_order_relaxed);
+        if (p.announcement.id != s.announcement.id)
+            s.announcement_ends = now_us() + std::uint64_t{p.announcement.seconds} * 1000000;
+        s.announcement = p.announcement;
     }
     ++s.party_revision; // anyone's party may have changed
     // A dedicated server knows players only by the name each sent in their hello.
@@ -508,19 +524,23 @@ void networking(Session &s, const NativeFrame &local, std::uint64_t now) {
         }
         if (stale[index])
             continue;
-            // The server saying which of this game's own pose messages it read.
-            if (const auto ack = pose_batch::Ack::read(message.bytes)) {
-                if (s.mode == Mode::join && !direct_link && dedicated_host(s)) s.pose_upload.ack(*ack);
-                continue;
-            }
-            if (sound_codec::is_sound(message.bytes)) {
-                if (s.mode == Mode::join && !direct_link && dedicated_host(s)) batch = unpack_sound(s, message.bytes);
-                if (batch.empty()) continue;
-            }
-            if (pose_batch::is_batch(message.bytes)) {
-                // Only a dedicated server sends these, and only to its players.
-                if (s.mode == Mode::join && !direct_link && dedicated_host(s)) batch = unpack_poses(s, message.bytes);
-                if (batch.empty()) continue;
+            // A dedicated server's own messages (pose_batch.h, sound_codec.h). Only what comes
+            // from the server is read as one: sound_codec's first four bytes are also those of
+            // the pose updates games send each other directly (delta_codec's "RMS1"), which
+            // must go on to be decoded as what they are.
+            if (s.mode == Mode::join && !direct_link && dedicated_host(s)) {
+                // The server saying which of this game's own pose messages it read.
+                if (const auto ack = pose_batch::Ack::read(message.bytes)) {
+                    s.pose_upload.ack(*ack);
+                    continue;
+                }
+                if (sound_codec::is_sound(message.bytes)) {
+                    batch = unpack_sound(s, message.bytes);
+                    if (batch.empty()) continue;
+                } else if (pose_batch::is_batch(message.bytes)) {
+                    batch = unpack_poses(s, message.bytes);
+                    if (batch.empty()) continue;
+                }
             }
         }
         bool missing_reference{};
@@ -540,6 +560,13 @@ void networking(Session &s, const NativeFrame &local, std::uint64_t now) {
         // A dedicated server sends no poses; its roster and control traffic keep it alive.
         if (dedicated_host(s) && message.peer == s.host_id) link->last_packet = now;
         if (p.kind == PacketKind::world_state) {
+            if (s.mode != Mode::join || message.peer != s.host_id || p.source != s.host_id ||
+                !link->handshaken || p.epoch != link->member.epoch ||
+                p.build != supported_build::game_sha256_bytes) {
+                disconnect(s, message.peer, "Only the admitted host may change the room's map.");
+                if (s.mode == Mode::off) return;
+                continue;
+            }
             if (p.world < s.world || (p.world == s.world && s.world_state_sequence &&
                                      !newer_sequence(p.sequence, s.world_state_sequence)))
                 continue;
@@ -1020,6 +1047,7 @@ void networking(Session &s, const NativeFrame &local, std::uint64_t now) {
                 s.last_routes = now;
         }
     }
+    update_scoring(s, now); // before the roster, so a host's own flag goes out with it
     tick_host_parties(s, now); // and the lobby's parties, which the roster carries
     if (s.mode == Mode::host && world_playing(s, local) && (s.roster_dirty || now - s.last_roster > 2000000))
         send_roster(s, now);

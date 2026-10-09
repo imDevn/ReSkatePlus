@@ -148,51 +148,41 @@ namespace dingosdk::native_tools {
             if (const auto* selected = level(m, argument); selected && listed(*selected)) {
                 s.destination = selected->asset;
             }
-        }
-        else if (command == "load-level") {
+        } else if (command == "load-level") {
             if (multiplayer_controls_level(m.multiplayer)) { s.feedback = "Only the lobby host can change levels."; return; }
             if (!can_load(s, m, cb)) { s.feedback = "Choose an available level once the game is ready."; return; }
             const auto* root = level(m, root_asset);
             const auto* selected = level(m, s.destination);
             const auto* point = selected->automatic_start_point();
             report(cb.queue_load(cb.user, root->asset.c_str(), "", selected->asset.c_str(), point ? point->c_str() : "", result.data(), result.size()));
-        }
-        else if (command == "traffic" || command == "pedestrians") {
+        } else if (command == "traffic" || command == "pedestrians") {
             const auto current = command == "traffic" ? m.world_controls.choices.traffic : m.world_controls.choices.pedestrians;
             console("environment " + std::string(command) + " " + std::to_string(current >= 3 ? -1 : current + 1),
                 m.world.ready && m.world_controls.population_available);
-        }
-        else if (command == "time-of-day") {
+        } else if (command == "time-of-day") {
             if (!time_of_day_available(m, cb)) { s.feedback = "Time of day is unavailable on this map right now."; return; }
             const auto next = static_cast<unsigned>((time_of_day(m) + 1) % time_of_day_labels.size());
             for (const auto& line : time_of_day_commands(m, next)) console(line, true);
-        }
-        else if (command == "park-lot") {
+        } else if (command == "park-lot") {
             for (unsigned i = 0; i < park_lots.size(); ++i) if (park_lots[i].key == argument) s.lot = i;
-        }
-        else if (command == "park-layout") {
+        } else if (command == "park-layout") {
             cycle(s.parks[s.lot], layouts(s.lot));
-        }
-        else if (command == "park-family") {
+        } else if (command == "park-family") {
             unsigned family = 0;
             for (unsigned i = 0; i < park_families.size(); ++i)
                 if (s.parks[s.lot].starts_with(park_families[i])) family = i + 1;
             s.parks[s.lot] = family == park_families.size() ? "empty" : park_id(family, 1);
-        }
-        else if (command == "load-park") {
+        } else if (command == "load-park") {
             console("park " + std::string(park_lots[s.lot].key) + " " + s.parks[s.lot], can_park(m, cb) && valid_park(s.lot, s.parks[s.lot]));
-        }
-        else if (command == "load-random-parks") {
+        } else if (command == "load-random-parks") {
             // Use the shared command path: hosts load locally, server admins request
             // one server roll, and guests cannot replace the host's layouts.
             if (console("park random", can_park(m, cb))) s.parks = {};
-        }
-        else if (command == "park-random-on-launch") {
+        } else if (command == "park-random-on-launch") {
             // This is a personal preference, including while following a host.
             console(m.parks.randomize_on_launch ? "park random-on-launch 0" : "park random-on-launch 1",
                 m.parks.available);
-        }
-        else if (command == "noclip" || command == "no-bail" || command == "freecam" || command == "speed") {
+        } else if (command == "noclip" || command == "no-bail" || command == "freecam" || command == "speed") {
             const auto& d = m.debug;
             overlay::DebugRequest request;
             bool enabled = false;
@@ -206,30 +196,24 @@ namespace dingosdk::native_tools {
                 enabled = d.camera_available && (d.free_camera || d.noclip);
             }
             report(enabled && cb.queue_debug && cb.queue_debug(cb.user, request, result.data(), result.size()));
-        }
-        else if (command == "board-wear") {
+        } else if (command == "board-wear") {
             const auto& wear = m.offline.board_wear;
             const overlay::OfflineFeatureRequest request{ overlay::OfflineFeatureGroup::board_wear, !wear.effective };
             report(wear.available && cb.queue_offline_feature &&
                 cb.queue_offline_feature(cb.user, request, result.data(), result.size()));
-        }
-        else if (command == "hall-of-meat") {
+        } else if (command == "hall-of-meat") {
             console(m.hall_of_meat.enabled ? "hallofmeat 0" : "hallofmeat 1", m.hall_of_meat.available);
-        }
-        else if (command == "board-wear-reset") {
+        } else if (command == "board-wear-reset") {
             console("boardwear reset", m.offline.board_wear.available && m.offline.board_wear.effective);
-        }
-        else if (command == "challenges") {
+        } else if (command == "challenges") {
             console(std::string("challenges ") + (m.progression.challenges_hidden ? "1" : "0"), m.progression.challenges_enabled);
-        }
-        else if (command == "graphics") {
+        } else if (command == "graphics") {
             for (unsigned i = 0; i < graphics_keys.size(); ++i) if (argument == graphics_keys[i]) {
                 const auto choice = m.graphics.choices.effects[i];
                 const bool on = choice < 0 ? !m.graphics.ready[i] || m.graphics.enabled[i] : choice != 0;
                 console("graphics " + argument + (on ? " 0" : " 1"), m.graphics.available);
             }
-        }
-        else if (command == "graphics-reset") console("graphics reset -1", m.graphics.available);
+        } else if (command == "graphics-reset") console("graphics reset -1", m.graphics.available);
     }
     inline Page render(State& s, const overlay::Model& m, const overlay::CallbacksV3& cb, unsigned section) {
         sync(s, m);
@@ -278,8 +262,7 @@ namespace dingosdk::native_tools {
                 text(p.side, "time-status", m.multiplayer.server_admin ? "You are an admin: time of day changes for the whole server."
                     : "The lobby host controls world layers, including time of day.");
             load_status("load-status");
-        }
-        else if (section == custom_section) {
+        } else if (section == custom_section) {
             text(p.main, "custom-levels-title", "CUSTOM MAPS");
             if (!destinations(true)) {
                 text(p.main, "custom-levels-empty", "No custom maps installed.");
@@ -290,8 +273,7 @@ namespace dingosdk::native_tools {
             button(p.side, "custom-load-level", "Load selected map", "load-level",
                 selected && selected->custom && can_load(s, m, cb), {}, true);
             load_status("custom-load-status");
-        }
-        else if (section == parks_section) {
+        } else if (section == parks_section) {
             text(p.main, "parks-title", "CHOOSE A PARK LOT");
             for (unsigned i = 0; i < park_lots.size(); ++i)
                 button(p.main, "park-lot-" + std::to_string(i), std::string(park_lots[i].label) + (s.lot == i ? "  /  SELECTED" : ""),
@@ -310,8 +292,7 @@ namespace dingosdk::native_tools {
             text(p.side, "park-status", m.world.map != WorldMap::bam ? "Load San Vansterdam to change parks." :
                 parks_locked(m) ? "The lobby host controls park layouts."
                 : m.parks.controlled_by_host ? "You are an admin: layouts you load change for the whole server." : "");
-        }
-        else if (section == player_section) {
+        } else if (section == player_section) {
             text(p.main, "player-title", "SKATE YOUR WAY");
             toggle(p.main, "noclip", "Noclip", m.debug.noclip, (m.debug.noclip_available || m.debug.noclip) && cb.queue_debug);
             toggle(p.main, "no-bail", "No bail", m.debug.no_bail, (m.debug.no_bail_available || m.debug.no_bail) && cb.queue_debug);
@@ -333,8 +314,7 @@ namespace dingosdk::native_tools {
             button(p.side, "card-name-save", "Save card name", "card-name", m.player_card.available, {}, true);
             button(p.side, "card-name-reset", "Use Steam name", "card-name-reset",
                 m.player_card.available && !m.player_card.custom_name.empty());
-        }
-        else {
+        } else {
             text(p.main, "visuals-title", "CAMERA EFFECTS");
             constexpr std::array<const char*, 3> names{ "Film grain", "Vignette", "Chromatic aberration" };
             for (unsigned i = 0; i < names.size(); ++i) {

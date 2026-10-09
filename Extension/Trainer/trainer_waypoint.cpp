@@ -82,12 +82,10 @@ MapWaypointRead read_map_waypoint(std::uintptr_t base) noexcept {
     if (!base) return {};
     try {
         return walk(base);
-    }
-    catch (const std::exception& e) {
-        return MapWaypointRead{ .reading = {}, .detail = e.what() };
-    }
-    catch (...) {
-        return MapWaypointRead{ .reading = {}, .detail = "map POI walk failed" };
+    } catch (const std::exception &e) {
+        return MapWaypointRead{.reading = {}, .detail = e.what()};
+    } catch (...) {
+        return MapWaypointRead{.reading = {}, .detail = "map POI walk failed"};
     }
 }
 } // namespace dingosdk::trainer

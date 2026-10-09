@@ -193,10 +193,8 @@ namespace dingosdk::client_source::detail {
                         // with this frame's; this only covers frames without one.
                         for (const std::size_t i : {0u, 1u, 2u, 4u, 5u, 6u, 8u, 9u, 10u, 12u, 13u, 14u}) next[i] = latest->head[i];
                         origin = latest->origin;
-                    }
-                    else origin = first_person_head_matrix(trial.base, component, next);
-                }
-                catch (const SourceGuard& guard) {
+            } else origin = first_person_head_matrix(trial.base, component, next);
+        } catch (const SourceGuard& guard) {
                     first_person_disarm();
                     debug.status = guard.message;
                     debug.first_person_waiting = true;
@@ -219,8 +217,7 @@ namespace dingosdk::client_source::detail {
                         ? "First person on. True first person keeps the view level and steady."
                         : "First person on. The camera follows the skater's head.";
                 }
-            }
-            else {
+            } else {
                 next = step_free_flight(debug.flight_matrix, input ? *input : idle, seconds, debug.flight_speed);
             }
             // Runs after the native client update on the same engine thread. Publishing
@@ -299,8 +296,7 @@ namespace dingosdk::client_source::detail {
                 const std::array<float, 4> steady{ arm.smoothing, arm.head_pitch, arm.head_roll, arm.bob };
                 for (std::size_t i = 0; i < 4; ++i) values.emplace_back(saved::steady[i], static_cast<double>(steady[i]));
                 profile_runtime::set_local_values(values);
-            }
-            catch (...) { /* Saving is best effort; the choices already apply. */ }
+            } catch (...) { /* Saving is best effort; the choices already apply. */ }
         }
 
         // Applies saved choices over the current values; anything missing or out of
@@ -347,8 +343,7 @@ namespace dingosdk::client_source::detail {
                     debug.first_person_settings = arm;
                     first_person_arm().settings = arm;
                 }
-            }
-            catch (...) { /* Unreadable choices leave the defaults in place. */ }
+            } catch (...) { /* Unreadable choices leave the defaults in place. */ }
         }
 
         void debug_action(SourceTrial& trial, std::uintptr_t client, bool can_control, bool phase,
@@ -375,21 +370,18 @@ namespace dingosdk::client_source::detail {
                     try {
                         apply(overlay::DebugAction::set_free_camera, true);
                         apply(overlay::DebugAction::set_game_ui_hidden, true);
-                    }
-                    catch (...) {
+                    } catch (...) {
                         try {
                             apply(overlay::DebugAction::set_game_ui_hidden, debug.editor_previous_ui);
                             if (!debug.editor_previous_camera) apply(overlay::DebugAction::set_free_camera, false);
                             if (debug.editor_previous_noclip && session_noclip_allowed()) apply(overlay::DebugAction::set_noclip, true);
                             if (debug.editor_previous_first_person) apply(overlay::DebugAction::set_first_person, true);
                             debug.park_editor = false;
-                        }
-                        catch (...) {}
+                        } catch (...) {}
                         throw;
                     }
                     debug.status = "Park editor enabled. Hold RMB over the viewport to fly.";
-                }
-                else {
+                } else {
                     apply(overlay::DebugAction::set_game_ui_hidden, debug.editor_previous_ui);
                     if (!debug.editor_previous_camera) apply(overlay::DebugAction::set_free_camera, false);
                     if (debug.editor_previous_noclip && session_noclip_allowed()) apply(overlay::DebugAction::set_noclip, true);
@@ -474,8 +466,7 @@ namespace dingosdk::client_source::detail {
                         "Off-board Up Boost speed must be between 1 and 25.");
                     debug.offboard_up_velocity_speed = request.value;
                     debug.status = "Off-board Up Boost speed updated.";
-                }
-                else {
+                } else {
                     const bool up = request.action == overlay::DebugAction::set_up_velocity_speed;
                     source_require(std::isfinite(request.value) && request.value >= 1.0f && request.value <= (up ? 25.0f : 300.0f),
                         up ? "Up Boost speed must be between 1 and 25." : "Forward Boost speed must be between 1 and 300.");
@@ -510,8 +501,7 @@ namespace dingosdk::client_source::detail {
                 catch (...) { issue = "UI restoration failed."; }
                 try {
                     debug_restore_camera(trial, client, phase, error);
-                }
-                catch (const SourceGuard& guard) { if (!issue.empty()) issue += " "; issue += guard.message; }
+                } catch (const SourceGuard& guard) { if (!issue.empty()) issue += " "; issue += guard.message; }
                 catch (...) { if (!issue.empty()) issue += " "; issue += "Camera restoration failed."; }
                 if (!issue.empty()) { debug.status = issue; return; }
                 debug.status = "Debug changes restored.";
@@ -542,8 +532,7 @@ namespace dingosdk::client_source::detail {
                 const auto bodies = debug_noclip_bodies(trial.base, client, skater.skater_identity);
                 if (offboard_boost) {
                     source_require(bodies.offboard || bodies.wipeout, "Off-board Up Boost requires walking, falling or gliding.");
-                }
-                else {
+                } else {
                     source_require(!bodies.offboard, "Velocity boosts require the skater to be on the board.");
                 }
                 SourceReader reader;
@@ -587,8 +576,7 @@ namespace dingosdk::client_source::detail {
                     boost.expires = GetTickCount64() + 180;
                     ++debug.offboard_up_velocity_updates;
                     debug.status = "Off-board up velocity added.";
-                }
-                else debug.status = up ? "Up Boost queued." : "Forward Boost queued.";
+                } else debug.status = up ? "Up Boost queued." : "Forward Boost queued.";
                 return;
             }
             if (request.action == overlay::DebugAction::set_no_bail) {
@@ -677,8 +665,7 @@ namespace dingosdk::client_source::detail {
                     if (multiplayer::install_entity_hooks(trial.base, hook_detail)) {
                         multiplayer::set_animation_evaluated_listener(&first_person_on_animation);
                         multiplayer::set_render_pose_listener(&first_person_on_render);
-                    }
-                    else
+                    } else
                         dingosdk::logging::log(dingosdk::logging::Level::warning, dingosdk::logging::Channel::skater,
                             "First person will trail the head by one animation step: {}", hook_detail);
                 }
@@ -778,17 +765,14 @@ namespace dingosdk::client_source::detail {
                     debug_action(trial, client, can_control, phase, { overlay::DebugAction::set_first_person, false }, error);
                     debug.first_person_paused = true;
                     debug.status = "On foot: third person until you are back on the board.";
-                }
-                else if (debug.first_person_paused && !*on_foot && held >= 120) {
+                } else if (debug.first_person_paused && !*on_foot && held >= 120) {
                     debug_action(trial, client, can_control, phase, { overlay::DebugAction::set_first_person, true }, error);
                     debug.first_person_paused = !debug.first_person;
                 }
-            }
-            catch (const SourceGuard& guard) {
+            } catch (const SourceGuard& guard) {
                 debug.status = guard.message;
                 debug.first_person_retry_after = now + 500;
-            }
-            catch (...) {
+            } catch (...) {
                 debug.first_person_retry_after = now + 500;
             }
         }
@@ -829,8 +813,7 @@ namespace dingosdk {
                 debug_action(trial, client, can_control, camera_phase_observed,
                     { overlay::DebugAction::set_park_editor, false }, error.value);
                 debug.status = "The host disabled object placement. Previous camera and UI settings restored.";
-            }
-            catch (const SourceGuard& guard) { debug.status = guard.message; }
+            } catch (const SourceGuard& guard) { debug.status = guard.message; }
             catch (...) { debug.status = "Restoring camera and UI after the host disabled object placement."; }
         }
         // The host took noclip away (joining, or changed mid-session): land now. A disallowed No
@@ -866,8 +849,7 @@ namespace dingosdk {
             const auto ui = debug_ui(base);
             model.ui_available = can_control;
             model.game_ui_hidden = !ui.draw;
-        }
-        catch (...) {}
+        } catch (...) {}
         try {
             const auto camera = flight_camera ? *flight_camera : source_camera_snapshot(trial, client);
             const bool owned_view = camera.mode == 1 && camera.active == camera.identity.camera;
@@ -894,13 +876,11 @@ namespace dingosdk {
                 }
             }
             reader.verify();
-        }
-        catch (const SourceGuard& guard) {
+        } catch (const SourceGuard& guard) {
             model.camera_position_valid = false;
             model.camera_transform_valid = false;
             if (!model.camera_available) model.camera_unavailable = guard.message;
-        }
-        catch (...) {
+        } catch (...) {
             model.camera_position_valid = false;
             model.camera_transform_valid = false;
             if (!model.camera_available) model.camera_unavailable = "Local camera could not be read.";
@@ -933,11 +913,9 @@ namespace dingosdk {
                 state.velocity_guard_active.load(std::memory_order_acquire) && !bodies.offboard) {
                 model.forward_velocity_available = true;
                 model.forward_velocity_unavailable.clear();
-            }
-            else if (bodies.offboard) {
+            } else if (bodies.offboard) {
                 model.forward_velocity_unavailable = "Forward Boost requires the skater to be on the board.";
-            }
-            else if (debug.forward_velocity.valid) {
+            } else if (debug.forward_velocity.valid) {
                 model.forward_velocity_unavailable = "Forward Boost is being applied.";
             }
             if (debug.up_velocity.valid && (GetTickCount64() >= debug.up_velocity.expires ||
@@ -949,11 +927,9 @@ namespace dingosdk {
                 state.velocity_guard_active.load(std::memory_order_acquire) && !bodies.offboard) {
                 model.up_velocity_available = true;
                 model.up_velocity_unavailable.clear();
-            }
-            else if (bodies.offboard) {
+            } else if (bodies.offboard) {
                 model.up_velocity_unavailable = "Up Boost requires the skater to be on the board.";
-            }
-            else if (debug.up_velocity.valid) {
+            } else if (debug.up_velocity.valid) {
                 model.up_velocity_unavailable = "Up Boost is being applied.";
             }
             if (debug.offboard_up_velocity.valid && (GetTickCount64() >= debug.offboard_up_velocity.expires ||
@@ -967,11 +943,9 @@ namespace dingosdk {
                 state.velocity_guard_active.load(std::memory_order_acquire) && (bodies.offboard || bodies.wipeout)) {
                 model.offboard_up_velocity_available = true;
                 model.offboard_up_velocity_unavailable.clear();
-            }
-            else if (!bodies.offboard && !bodies.wipeout) {
+            } else if (!bodies.offboard && !bodies.wipeout) {
                 model.offboard_up_velocity_unavailable = "Off-board Up Boost requires walking, falling or gliding.";
-            }
-            else if (debug.offboard_up_velocity.valid) {
+            } else if (debug.offboard_up_velocity.valid) {
                 model.offboard_up_velocity_unavailable = "Off-board Up Boost is being applied.";
             }
             model.no_bail_available = can_control && update_no_bail(client, model.skater_identity, debug.no_bail && no_bail_allowed,
@@ -986,14 +960,12 @@ namespace dingosdk {
                     model.noclip_unavailable.clear();
                 }
             }
-        }
-        catch (const SourceGuard& guard) {
+        } catch (const SourceGuard& guard) {
             if (model.camera_available) model.noclip_unavailable = guard.message;
             model.forward_velocity_unavailable = guard.message;
             model.up_velocity_unavailable = guard.message;
             model.offboard_up_velocity_unavailable = guard.message;
-        }
-        catch (...) {
+        } catch (...) {
             if (model.camera_available) model.noclip_unavailable = "Local skater physics could not be read.";
             model.forward_velocity_unavailable = "Local skater physics could not be read.";
             model.up_velocity_unavailable = "Local skater physics could not be read.";

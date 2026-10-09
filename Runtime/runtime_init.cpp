@@ -83,8 +83,7 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
             dingosdk::logging::log(dingosdk::logging::Level::info, dingosdk::logging::Channel::assets,
                 "Game content cache: {} items, {} challenges, {} entitlements.",
                 content.items.size(), content.challenges.size(), content.entitlements.size());
-        }
-        else {
+        } else {
             dingosdk::logging::write(dingosdk::logging::Level::warning, dingosdk::logging::Channel::assets,
                 "Game content cache is not installed: item names, challenges and default entitlements are unavailable. "
                 "Start ReSkate+ from ReSkatePlusLauncher to install it.");
@@ -101,8 +100,7 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
                 "World layers: {} layers across {} maps from the level data ({} ms).",
                 layers.layers.size(), layers.anchors.size(), GetTickCount64() - started);
             dingosdk::install_world_layer_catalog(std::move(layers));
-        }
-        catch (const std::exception& error) {
+        } catch (const std::exception& error) {
             dingosdk::logging::log(dingosdk::logging::Level::warning, dingosdk::logging::Channel::world,
                 "World layers are unavailable: {}", error.what());
         }
@@ -431,13 +429,11 @@ extern "C" __declspec(dllexport) BOOL WINAPI DingoSDKDebugInitialize() {
         activity_line(dingosdk::ConsoleSource::runtime, "Offline runtime initialized. Waiting for the game.");
         startup_window.hand_over();
         return TRUE;
-    }
-    catch (const std::exception& error) {
+    } catch (const std::exception& error) {
         dingosdk::logging::log(dingosdk::logging::Level::critical, dingosdk::logging::Channel::runtime,
             "Runtime initialization failed: {}", error.what());
         return FALSE;
-    }
-    catch (...) {
+    } catch (...) {
         dingosdk::logging::write(dingosdk::logging::Level::critical, dingosdk::logging::Channel::runtime,
             "Runtime initialization failed with an unknown exception.");
         return FALSE;

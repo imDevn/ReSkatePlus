@@ -3,7 +3,6 @@
 // map's point-of-interest registry so the trainer can teleport to it. Game thread only.
 #include "trainer_landing.h"
 #include <cstdint>
-#include <optional>
 #include <string>
 
 namespace dingosdk::trainer {

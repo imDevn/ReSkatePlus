@@ -180,13 +180,11 @@ namespace {
         for (const auto character : value) {
             if (character == L'\\') {
                 ++slashes;
-            }
-            else if (character == L'\"') {
+            } else if (character == L'\"') {
                 output.append(slashes * 2 + 1, L'\\');
                 output.push_back(character);
                 slashes = 0;
-            }
-            else {
+            } else {
                 output.append(slashes, L'\\');
                 slashes = 0;
                 output.push_back(character);
@@ -269,8 +267,7 @@ namespace {
                 token.find_first_not_of("0123456789") == std::string::npos) {
                 current = std::stoull(token);
                 if (!first) first = current;
-            }
-            else if (_stricmp(token.c_str(), "MostRecent") == 0 && current &&
+            } else if (_stricmp(token.c_str(), "MostRecent") == 0 && current &&
                 line.find("\"1\"", close) != std::string::npos) {
                 recent = current;
             }
@@ -299,12 +296,7 @@ namespace {
         set_environment(L"SteamAppId", app_id);
         set_environment(L"SteamGameId", app_id);
         set_environment(L"RESKATE_LOG_DIRECTORY", logs.c_str());
-
-#ifdef _DEBUG
         set_environment(L"RESKATE_DEBUG_TEST_GLOBAL_OFFLINE", L"1");
-#else
-        set_environment(L"RESKATE_DEBUG_TEST_GLOBAL_OFFLINE", L"0");
-#endif
     }
 
     template<class T>
@@ -485,8 +477,7 @@ namespace dingosdk::launcher_app {
             launcher::validate_game_file(paths.game);
             launcher::validate_steam_api_file(paths.steam_api);
             return true;
-        }
-        catch (const std::exception& exception) {
+        } catch (const std::exception& exception) {
             logging::log(logging::Level::warning, logging::Channel::launcher,
                 "Game files are not the supported build: {}", exception.what());
             return false;
@@ -612,8 +603,7 @@ bool steam_signed_in() {
             else if (ec)
                 logging::log(logging::Level::warning, logging::Channel::launcher,
                     "Could not create the MiniDumpWriteDump API-set shim beside Skate.exe: {}", ec.message());
-        }
-        catch (...) {}
+        } catch (...) {}
     }
 
     DWORD start_game(const Session& session, const launcher::LaunchOptions& options,

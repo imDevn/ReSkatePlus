@@ -98,6 +98,5 @@ void dingosdk::overlay::notify(NoticeLevel level, std::string title, std::string
         std::lock_guard lock(notices_mutex);
         while (notices.size() >= maximum_notices) notices.pop_front();
         notices.push_back({ level, std::move(title), std::move(text), {} });
-    }
-    catch (...) {}
+    } catch (...) {}
 }

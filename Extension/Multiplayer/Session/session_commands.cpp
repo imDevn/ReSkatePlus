@@ -595,6 +595,9 @@ std::string edit_world_layer_sync(Session &s, std::string_view argument) {
 // Sends one setting change to the dedicated server this guest is an admin of.
 // The server answers in chat.
 std::string send_admin(Session &s, std::string text) {
+    auto *host = find_peer(s, s.host_id);
+    if (!host || !host->handshaken) return "Not connected to the server yet.";
+    if (!s.server_admin) return "You are not an admin on this server.";
     auto request = packet(s, PacketKind::admin, now_us());
     request.text = std::move(text);
     if (request.text.size() > max_admin_text || !valid_admin_text(request.text)) return "That request is too long.";
@@ -639,6 +642,7 @@ bool queue_command(std::string_view action, std::string_view argument, std::stri
     return true;
 }
 bool server_vote_open() noexcept { return session_detail::server_vote_open_flag.load(std::memory_order_relaxed); }
+unsigned server_poll_answers() noexcept { return session_detail::server_poll_answers_flag.load(std::memory_order_relaxed); }
 std::string command(std::string_view action, std::string_view argument, std::string_view password) {
     if (launcher::offline_mode() && !own_mark_command(action))
         return "Multiplayer is unavailable in offline mode. Start Steam and relaunch ReSkate+.";
@@ -651,19 +655,22 @@ std::string command(std::string_view action, std::string_view argument, std::str
         // A dedicated server's admin changes the server's settings instead of
         // their own: the same menu actions, sent to the server. "server" sends
         // any server console command.
-    if (dedicated_host(s) && (action == "server" ||
-        (action == "distances" || action == "object-placement" || action == "object-limit" || action == "voice-allow" || action == "voice-range" ||
-         action == "clear-objects" || action == "kick" || action == "ban" || action == "unban" ||
-         action == "world-layer-sync" || action == "noclip-allow" || action == "nobail-allow" ||
-         action == "tpall" || action == "tphere" || action == "boosts-allow" || action == "tuning-enforce"))) {
+        if (dedicated_host(s) && (action == "server" || (s.server_admin &&
+            (action == "distances" || action == "object-placement" || action == "object-limit" || action == "voice-allow" || action == "voice-range" ||
+             action == "clear-objects" || action == "kick" || action == "ban" || action == "unban" ||
+             action == "world-layer-sync" || action == "noclip-allow" || action == "nobail-allow" ||
+             action == "tpall" || action == "tphere" || action == "boosts-allow" || action == "tuning-enforce")))) {
             const auto text = action == "server" ? std::string(argument) : std::string(action) + " " + std::string(argument);
             const auto result = send_admin(s, text);
             if (result != "Sent to the server.") add_chat(s, 0, "Server", result);
             return result;
         }
         if (action == "vote") {
-            if (argument != "yes" && argument != "no") return "vote yes|no";
-            const auto result = cast_server_vote(s, argument == "yes");
+            // yes or no, or the number of a poll's answer
+            const bool answer = argument.size() == 1 && argument[0] >= '1' && argument[0] <= '0' + static_cast<char>(max_vote_answers);
+            if (argument != "yes" && argument != "no" && !answer) return "vote yes|no|<answer number>";
+            const auto result = answer ? answer_server_poll(s, static_cast<std::size_t>(argument[0] - '1'))
+                                       : cast_server_vote(s, argument == "yes");
             if (!result.empty()) add_chat(s, 0, "ReSkate", result);
             return result;
         }

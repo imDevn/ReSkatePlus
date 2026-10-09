@@ -177,7 +177,7 @@ struct Settings {
     bool windowed{};
     int width{1920};
     int height{1080};
-    bool loose_files{};
+    bool loose_files{true};
     bool deprecated_mods{};
     bool nsfw_mods{};
     bool gpu_diagnostics{};

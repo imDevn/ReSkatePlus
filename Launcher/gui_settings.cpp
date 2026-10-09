@@ -81,7 +81,7 @@ bool key_bindings(const Fonts& fonts, Settings& settings, Ui& ui) {
         ImGui::TextDisabled("%s", detail);
         ImGui::Spacing();
     };
-    row(1, "ReSkate menu", "Opens and closes the ReSkate menu.", settings.menu_key);
+    row(1, "ReSkate+ menu", "Opens and closes the ReSkate+ menu.", settings.menu_key);
     row(2, "Console", "Opens and closes the command console.", settings.console_key);
     if (!ui.key_error.empty())
         ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(color::danger), "%s", ui.key_error.c_str());
@@ -159,7 +159,7 @@ void settings_window(Launcher& launcher, const Fonts& fonts, ImVec2 size, Ui& ui
         if (ImGui::Button("Verify game files")) { open = false; open_sign_in(launcher, ui, true); }
         ImGui::EndDisabled();
         ImGui::Spacing();
-        //ImGui::Spacing();
+        ImGui::Spacing();
         section_caption(fonts, "PLAY");
         setting_check("Offline mode", "Play without Steam as Unknown Player; multiplayer is hidden. "
                       "Used automatically whenever Steam isn't running.", settings.offline);

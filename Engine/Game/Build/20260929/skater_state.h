@@ -2,7 +2,6 @@
 #include "client_source_spawn.h"
 #include <array>
 #include <cstdint>
-#include <string_view>
 
 namespace dingosdk::game::build::v20260929::skater_state {
 // Supported SHA-256 fbce74d5e28ef525dbba2cb4adbebc13405bdbd88f31bc940bca45e4ae88b8f9.
@@ -11,28 +10,18 @@ namespace dingosdk::game::build::v20260929::skater_state {
 // The physics state the core's selector chose this step (no_bail.h: choose_physics_state; its
 // offboard_physics_state is the one on foot and through a whole bail).
 inline constexpr std::uintptr_t physics_state_offset = 0x1414; // uint32, context
-// Every state class returns its id and its name from its vtable (e.g. 0x14482ecd0 returns
-// "PHYSICS_STATE_PHYSICS_AIR", its neighbour 200): all 21 of them.
-struct PhysicsStateName {
-    std::uint32_t id;
-    std::string_view name;
-};
-inline constexpr std::array<PhysicsStateName, 21> physics_state_names{{
-    {100, "PHYSICS_GROUND"}, {101, "SLIDE_GROUND"}, {102, "REVERT_GROUND"}, {103, "GROUND_ANIMATION"},
-    {104, "SKITCHING"}, {105, "FOLLOW_PATH"},
-    {200, "PHYSICS_AIR"}, {201, "KNOWN_AIR"}, {202, "GRIND_TRICK"}, {203, "WALLIE"},
-    {300, "WIPEOUT_GROUND"},
-    {504, "OFFBOARD"},
-    {600, "HANDPLANT"}, {601, "FOOTPLANT"}, {602, "BONELESS"}, {603, "LIPTRICK"}, {604, "ROLL_IN"}, {605, "SLAPPY"},
-    {700, "SLEEPING"}, {701, "NONSPECIFIC"}, {702, "TELEPORTING"},
-}};
 inline constexpr std::array<std::uint32_t, 2> board_air_states{200, 201}; // PHYSICS_AIR, KNOWN_AIR
-inline constexpr std::uint32_t offboard_physics_state = 504; // on foot, and through a whole bail
 
 // The core's trick state (its vtable slot +0xb0 returns core+0x3b8) holds the offboard state
 // at +0x78: the skater on foot and in a ragdoll (the script native GetOffboardScoring copies
+// it out). Each offboard substate class raises exactly one substate flag of it from its vtable
+// (0x1465e8c28 on, each beside its name and id); the three ragdoll ones, FollowRagdoll (3)
+// 0x14482d970, FollowAnimatedRagdoll (4) 0x14482d3b0 and FollowSimulatedRagdoll (5) 0x14482db00,
+// the same one. In the air is the substate's own +0x150, copied over. Flags are one byte, 0 or 1.
 inline constexpr std::uintptr_t trick_state_offset = 0x3b8;   // core
 inline constexpr std::uintptr_t offboard_state_offset = 0x78; // trick state
+inline constexpr std::uintptr_t ragdoll_offset = 0x18c;       // offboard state
+inline constexpr std::uintptr_t in_the_air_offset = 0x180;    // offboard state
 
 // How fast the skater moves: the linear velocity of its physics bodies, read as the SDK's noclip
 // reads and writes them (Extension/Skater/client_noclip.cpp). The board's physics: core+0x430 ->
