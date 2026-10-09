@@ -90,7 +90,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     auto** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     if (!argv) {
         MessageBoxW(nullptr, L"Could not read the launcher command line.",
-            L"ReSkate Launcher", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+            L"ReSkate+ Launcher", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
         return 1;
     }
     if (argc > 1 && std::wstring_view(argv[1]) == L"--reskate-crash-helper") {

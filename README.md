@@ -31,7 +31,9 @@ Older/newer versions _should_ work unless the packet structure or SteamAPI hands
     screens, cosmetics and scripts.
   - Browse and install mods from the [Thunderstore community](https://thunderstore.io/c/reskate/) in the
     launcher.
-  - Most mod changes apply in game without a restart.
+  - Disabled mods contribute no game data on the next launch. Most asset mod changes apply in game
+    without a restart; enabling or disabling a map that changes shared root shaders or materials
+    requires a restart. Enabled maps still share their root resources even before visiting them.
 - **Launcher.**
   - Checks that you have the supported game build, and can download exactly that build with your Steam
     account.

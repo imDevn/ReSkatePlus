@@ -62,9 +62,7 @@ void draw_notices() {
         // "ReSkate 0.6.0 loaded" and the keys the launcher chose for the menu and console.
         const auto keys = dingosdk::launcher::overlay_keys();
         const auto name = [](unsigned key) { return key == VK_OEM_3 ? std::string("~") : dingosdk::launcher::key_name(key); };
-        dingosdk::overlay::notify(NoticeLevel::info,
-            dingosdk::reskate_release_build ? "ReSkate " + std::string(dingosdk::reskate_version) + " loaded"
-                                            : std::string("ReSkate loaded (development build)"),
+        dingosdk::overlay::notify(NoticeLevel::info, std::string("ReSkate+ v1.0.4") + (dingosdk::reskate_release_build ? "" : " [DEBUG]") + " loaded!\nSupports servers running v" + std::string(dingosdk::reskate_version),
             "Press " + name(keys.menu) + " for the menu and " + name(keys.console) + " for the console.");
     }
     std::lock_guard lock(notices_mutex);

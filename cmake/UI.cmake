@@ -1,5 +1,4 @@
 add_library(dingosdk_overlay STATIC
-
     Extension/UI/Overlay/overlay.cpp
     Extension/UI/Overlay/overlay_render.cpp
     Extension/UI/Overlay/overlay_console.cpp

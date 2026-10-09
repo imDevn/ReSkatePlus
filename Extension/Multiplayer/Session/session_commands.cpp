@@ -369,7 +369,6 @@ std::string edit_mark_style(Session &, std::string_view argument) {
     // kept, and sent, as a solid colour older builds can show (rainbow_style).
     const auto social = steam_social_snapshot();
     const auto mark = social ? identity_mark(social->local.id) : std::nullopt;
-    if (mode == 4 && mark != IdentityList::staff) return "The rainbow is not one of your styles.";
     const auto colour = [](unsigned value) {
         return std::array<std::uint8_t, 3>{static_cast<std::uint8_t>(value >> 16), static_cast<std::uint8_t>(value >> 8),
                                            static_cast<std::uint8_t>(value)};
@@ -641,7 +640,7 @@ bool queue_command(std::string_view action, std::string_view argument, std::stri
 }
 std::string command(std::string_view action, std::string_view argument, std::string_view password) {
     if (launcher::offline_mode() && !own_mark_command(action))
-        return "Multiplayer is unavailable in offline mode. Start Steam and relaunch ReSkate.";
+        return "Multiplayer is unavailable in offline mode. Start Steam and relaunch ReSkate+.";
     const bool configured_host = action == "host-config";
     if (configured_host) action = "host";
     PrivateRequest input;

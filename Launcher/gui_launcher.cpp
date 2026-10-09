@@ -29,7 +29,7 @@ std::string format_bytes(std::uint64_t bytes) {
 }
 
 fs::path settings_path(const launcher_app::Session& session) {
-    return session.self.parent_path() / L"ReSkateLauncher.settings.json";
+    return session.self.parent_path() / L"ReSkatePlusLauncher.settings.json";
 }
 
 Settings load_settings(const fs::path& path) {
@@ -325,7 +325,7 @@ void Launcher::run_check() {
             return;
         }
         if (!launcher_app::config_matches_build(*config)) {
-            fail("This launcher is out of date. Download the latest ReSkate release.");
+            fail("This launcher is out of date. Download the latest ReSkate+ release.");
             return;
         }
         if (installed) set(Phase::game_outdated, "Steam updated Skate",
@@ -339,8 +339,7 @@ void Launcher::run_check() {
         fail("ReSkatePlus.dll is missing from the game folder.");
         return;
     }
-    set(Phase::ready, "Ready to skate", !config ? "Offline: update check skipped."
-        : !settings_.updates ? (newer ? "ReSkate updates are off; keeping your ReSkate+ files." : "ReSkate+ updates are off.")
+    set(Phase::ready, "Ready to skate", !settings_.updates ? (newer ? "ReSkate+ updates are off; keeping your ReSkate+ files." : "ReSkate+ updates are off.")
         : "Up to date.");
 }
 
@@ -492,7 +491,7 @@ void apply_crash_report_setting() noexcept {
         const auto length = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
         if (!length || length >= path.size()) return;
         path.resize(length);
-        if (!detail::load_settings(std::filesystem::path(path).parent_path() / L"ReSkateLauncher.settings.json").crash_reports)
+        if (!detail::load_settings(std::filesystem::path(path).parent_path() / L"ReSkatePlusLauncher.settings.json").crash_reports)
             SetEnvironmentVariableW(L"RESKATE_CRASH_REPORTING", L"0");
     } catch (...) {}
 }

@@ -230,9 +230,9 @@ void settings_window(Launcher& launcher, const Fonts& fonts, ImVec2 size, Ui& ui
 
     ImGui::SetCursorPosY(ImGui::GetWindowHeight() - footer + S(8));
     ImGui::PushFont(fonts.caption);
-    ImGui::TextDisabled("%s", !update::binary_updates_enabled() ? "Development build: ReSkate files are never replaced."
-                              : settings.updates ? "Release build: updates install automatically."
-                                                 : "Updates are off: ReSkate files are never replaced.");
+    ImGui::TextDisabled("%s", !update::binary_updates_enabled() ? "[DEV] build, auto-updates disabled."
+                              : settings.updates ? "Updates will automatically be installed."
+                                                 : "Auto-updates are disabled.");
     ImGui::PopFont();
     ImGui::EndChild();
 
