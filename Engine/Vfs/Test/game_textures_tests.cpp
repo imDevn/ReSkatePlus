@@ -3,7 +3,6 @@
 #include "Engine/Vfs/game_textures.h"
 #include "Engine/Game/Build/addresses.h"
 #include "Engine/Game/Build/20260929/ui_textures.h"
-#include "Engine/Resource/image_region.h"
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
@@ -48,16 +47,6 @@ void the_overlays_textures_read(const char* game_root) {
     try { (void)textures.read(ui::airtime.toc, ui::airtime.bundle, "ui/textures/icons/no_such_icon", 64); }
     catch (const std::runtime_error&) { refused = true; }
     check(refused, "a missing texture is refused");
-}
-
-// How much of a region of the image is solid, 0 to 1.
-float solid(const frostbite::Image& image, const addr::ui_textures::Region& region) {
-    const auto left = static_cast<std::uint32_t>(region.left * image.width), right = static_cast<std::uint32_t>(region.right * image.width);
-    const auto top = static_cast<std::uint32_t>(region.top * image.height), bottom = static_cast<std::uint32_t>(region.bottom * image.height);
-    std::size_t opaque{}, all{};
-    for (auto y = top; y < bottom; ++y)
-        for (auto x = left; x < right; ++x, ++all) opaque += image.rgba[(std::size_t{y} * image.width + x) * 4 + 3] >= 128;
-    return all ? static_cast<float>(opaque) / static_cast<float>(all) : 0.0f;
 }
 
 void the_ui_shapes_read(const char* game_root) {

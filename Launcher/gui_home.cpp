@@ -77,8 +77,7 @@ namespace dingosdk::launcher_gui::detail {
                         corners[corner] = ImVec2(centre.x + std::cos(a) * radius, centre.y + std::sin(a) * radius);
                     }
                     draw->AddQuad(corners[0], corners[1], corners[2], corners[3], rgba(255, 255, 255, alpha), 1.2f);
-                }
-                else {
+                } else {
                     draw->AddCircle(centre, radius, rgba(255, 255, 255, alpha), 0, 1.2f);
                 }
             }

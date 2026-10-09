@@ -38,13 +38,12 @@ void register_progression_commands(Commands &registry) {
     registry.add(std::move(bus));
     for (const auto &key : {"challenges", "maxranks", "unlockall"}) {
         auto entry = variable(key,
-                              equal(key, "challenges")  ? "Show or hide challenges while keeping saved progress"
+                              equal(key, "challenges") ? "Show or hide challenges while keeping saved progress"
                               : equal(key, "maxranks") ? "Automatically maximize district ranks"
-                                                       : "Own every catalogue item, store and premium pass included "
-                                                         "(applies at the next game start)",
+                                                       : "Own every catalogue item, store and premium pass included (applies at the next game start)",
                               Group::progression, argument("0|1", Type::boolean));
         entry.aliases = {"progression " + std::string(key)};
-            entry.inspect = [key = std::string(key)](const Model &m) {
+        entry.inspect = [key = std::string(key)](const Model &m) {
             const bool value = key == "challenges" ? !m.progression.challenges_hidden
                                : key == "maxranks" ? m.progression.ranks_maxed
                                                    : m.progression.everything_unlocked;

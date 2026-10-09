@@ -18,8 +18,7 @@ namespace {
 // from and every file it holds.
 
 constexpr const wchar_t* stamp_name = stamp_file;
-// Version 2 excludes disabled mods, including their launch-only root data.
-constexpr char stamp_header[] = "ReSkate merge 2";
+constexpr char stamp_header[] = "ReSkate merge 1";
 
 std::string utf8(const fs::path& path) {
     const auto text = path.generic_u8string();
@@ -49,6 +48,7 @@ std::string merge_fingerprint(const Catalog& catalog, const std::vector<const Mo
                               const std::map<const Mod*, RelativeFiles>& modFiles) {
     std::string inputs = stamp_header;
     inputs += '\n';
+    inputs += "store unknown\n";
     const auto describe = [&](std::string_view label, const fs::path& path) {
         inputs += label;
         std::error_code error;

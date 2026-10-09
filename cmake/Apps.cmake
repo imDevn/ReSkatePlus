@@ -24,6 +24,9 @@ if(DINGOSDK_BUILD_LAUNCHER_TESTS AND WIN32)
     target_link_libraries(dingosdk_gamepad_input_tests PRIVATE dingosdk_imgui)
     target_include_directories(dingosdk_gamepad_input_tests PRIVATE "${PROJECT_SOURCE_DIR}")
     add_test(NAME launcher_gamepad_input COMMAND dingosdk_gamepad_input_tests)
+    add_executable(dingosdk_depot_output_tests Launcher/Test/depot_output_tests.cpp)
+    target_include_directories(dingosdk_depot_output_tests PRIVATE "${PROJECT_SOURCE_DIR}")
+    add_test(NAME launcher_depot_output COMMAND dingosdk_depot_output_tests)
     add_executable(dingosdk_content_catalogs_tests Engine/Vfs/Test/content_catalogs_tests.cpp)
     target_link_libraries(dingosdk_content_catalogs_tests PRIVATE dingosdk_content_cache)
     add_test(NAME content_catalogs COMMAND dingosdk_content_catalogs_tests)
@@ -141,7 +144,7 @@ option(DINGOSDK_LAUNCHER_AUTO_UPDATE "Let the launcher replace itself and ReSkat
 # server read launcher.json (game depot/manifest and the pinned downloads) from the latest
 # release. No credentials are built in. Build folders configured before releases moved
 # still cache the old private repo, which no public build can read.
-if(DINGOSDK_RELEASE_REPO STREQUAL "imDevn/ReSkatePlus")
+if(DINGOSDK_RELEASE_REPO STREQUAL "Dingo-Shenanigans/DingoSDK")
     unset(DINGOSDK_RELEASE_REPO CACHE)
 endif()
 set(DINGOSDK_RELEASE_REPO "imDevn/ReSkatePlus" CACHE STRING "Public GitHub owner/repo whose releases update the launcher")

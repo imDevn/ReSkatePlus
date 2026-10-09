@@ -1,6 +1,5 @@
 #include "trainer_page.h"
 #include "trainer.h"
-#include "Extension/Profile/local_profile_runtime.h"
 #include "Extension/UI/Overlay/skate_menu_internal.h"
 #include "Extension/UI/skate_theme.h"
 #include <algorithm>
@@ -217,13 +216,6 @@ void tune_tab(SkateMenu &menu, const Model &model, const CallbacksV3 &callbacks,
     }
     if (!view.editable) warn(view.blocked.c_str());
     // Two short lists and the whole table.
-    // Top-row: allow the user to choose whether to match host physics when in a multiplayer session.
-    {
-        bool match_host = profile_runtime::local_preference("Trainer.MatchHostTuning").value_or(true);
-        if (toggle_row(menu, "Match host physics tuning", "When joined to a session, use the host's physics tuning if the host allows it.", match_host)) {
-            profile_runtime::set_local_values({{"Trainer.MatchHostTuning", match_host}});
-        }
-    }
     {
         static constexpr const char *modes[]{"REALISTIC", "FUN", "EVERYTHING"};
         const float width = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2) / 3;

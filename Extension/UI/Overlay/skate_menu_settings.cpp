@@ -83,8 +83,7 @@ namespace dingosdk::overlay::menu {
             if (!available || ImGui::GetTime() >= menu.bind_capture_until) {
                 menu.recording_bind = 0;
                 feedback(menu, "Recording cancelled. Your binding is unchanged.");
-            }
-            else if (const auto combo = menu.bind_capture.update(controller, true)) {
+            } else if (const auto combo = menu.bind_capture.update(controller, true)) {
                 const auto action = menu.recording_bind;
                 menu.recording_bind = 0;
                 save(action, *combo);
@@ -106,8 +105,7 @@ namespace dingosdk::overlay::menu {
                 ImGui::TableNextColumn();
                 if (menu.recording_bind == action) {
                     if (ImGui::Button("Cancel", ImVec2(-1, 0))) menu.recording_bind = 0;
-                }
-                else {
+                } else {
                     ImGui::BeginDisabled(menu.recording_bind != 0);
                     if (ImGui::Button("Record", ImVec2(px(90), 0))) {
                         menu.bind_capture = {};
@@ -139,8 +137,7 @@ namespace dingosdk::overlay::menu {
         if (menu.recording_bind) {
             warn(!menu.bind_capture.ready ? "Release controller buttons and keyboard keys first." :
                 "Hold up to five keys together, then release them. A-Z, 0-9, Space, F1-F12, Ctrl, Shift and Alt work; controller combos work too.");
-        }
-        else {
+        } else {
             note(("Record a key, keyboard chord or controller combo, such as Ctrl + F5 or " + controller_combo_label(0x300, controller.style) +
                 ". Freecam, Freecam Controller, and Noclip toggle; boosts add velocity once per press. Off-board Up Boost also works while falling or gliding; release and press again to repeat. On-board and off-board boosts can share a combo. Give toggles different combos.").c_str());
             note("Saved to your profile.");
