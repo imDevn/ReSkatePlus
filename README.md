@@ -37,7 +37,7 @@ The launcher, the runtime that loads into the game, the dedicated server, or eve
 
 ### Features+
 
-Compatible with servers running: **2.0.2**\
+Compatible with servers running: **2.0.3**\
 Older/newer versions _should_ work unless the packet structure or SteamAPI handshake validation has changed.
 
 - **No reserved cosmetics.**
@@ -98,7 +98,7 @@ custom map and then join a server on another map, the screen can stay black
 
 The menu and console keys can be changed in the launcher's Settings.
 
-In **MAP → ROTATING PARKS** and the controller-friendly **CUSTOM STUFF → PARKS** screen,
+In **MAP → ROTATING PARKS** and the controller-friendly **MOD OPTIONS → PARKS** screen,
 **Load Random Parks** chooses and loads one random layout for each of
 San Vansterdam's three slots. Each supported layout has an equal chance; empty lots are excluded and
 a roll can pick a layout already loaded. Choices save with your profile and are shared when you host.
@@ -156,7 +156,8 @@ accepts `park random` from its console or an admin.
   on an automatically selected port; no internet hosting is needed. The endpoint exposes no filesystem
   routes and retains at most 64 MiB of artwork. Existing content-cache covers keep their priority.
 
-Only install mods you trust. Mods change game data, and custom scripts can run code.
+Only install mods you trust. Mods change game data. Custom Lua scripts (`scripts/Custom`) are
+switched off in this version: nothing in that folder is read or run.
 
 ## Dedicated servers
 
@@ -221,7 +222,7 @@ Useful launcher flags:
 
 | Flag | Effect |
 |---|---|
-| `--no-gui` | start the game straight away, without the launcher window |
+| `--no-gui` | start the game straight away, without the launcher window; with no other launch flags it uses the launcher's saved settings |
 | `--no-update` | skip the update check |
 | `--offline`, `-offline` | play offline, without Steam running |
 | `--windowed`, `--width=N`, `--height=N` | windowed mode and its size |
