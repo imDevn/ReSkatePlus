@@ -92,8 +92,6 @@ MergeReport merge_mods(const Catalog& catalog, const MergeObserver& observe, con
             std::map<const Mod*, RelativeFiles> modFiles;
             for (const auto* mod : mods) modFiles[mod] = scan(mod->directory);
 
-        // What the store sells comes from the content cache, which the launcher installs.
-        const bool storeKnown = content_cache::installed();
         // Disabled mods count too: their archives and map registration are placed at launch.
         auto fingerprint = merge_fingerprint(catalog, mods, modFiles);
         for (const auto& mod : catalog.inactive)
@@ -111,8 +109,6 @@ MergeReport merge_mods(const Catalog& catalog, const MergeObserver& observe, con
         // launch (the player is waiting on nothing else), half of them and fewer while the game runs.
         const auto cores = std::max(1U, std::thread::hardware_concurrency());
         const std::size_t readers = std::min<std::size_t>(options.live ? std::max(1U, cores / 2) : cores, options.live ? 6U : 8U);
-        if (storeKnown && store_copy_problems(catalog, report, options.live ? options.checked : std::vector<std::string>{},
-                                              readers - 1, options.live)) return report;
         if (!options.live) fs::remove_all(output, error);
         lap("checking the mods");
 

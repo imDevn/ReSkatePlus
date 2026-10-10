@@ -422,9 +422,6 @@ void load_host_preferences(Session &s);
 void save_host_preferences(const Session &s);
 void publish(Session &s, const NativeFrame *local = nullptr);
 void publish_chat(Session &s);
-void load_bans(Session &s);
-void save_bans(const Session &s);
-bool is_banned(Session &s, std::uint64_t id);
 // Re-reads friend_ids when the Steam social snapshot has changed.
 void refresh_friends(Session &s);
 // On a dedicated server games do not send each other anything: all of it goes through the

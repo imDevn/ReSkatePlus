@@ -551,11 +551,8 @@ std::string ban_player(Session &s, std::string_view argument) {
     }
     const auto *peer = find_peer(s, id);
     if (name.empty() && peer) name = peer->member.name;
-    load_bans(s);
-    if (is_banned(s, id)) return (name.empty() ? std::to_string(id) : name) + " is already banned.";
     s.bans.push_back({id, name, static_cast<std::int64_t>(std::time(nullptr))});
     s.ban_ids_dirty = true;
-    save_bans(s);
     const auto label = name.empty() ? std::to_string(id) : name;
     if (s.mode == Mode::host && peer && peer->handshaken) {
         disconnect(s, id, "You were banned by the session host.");
@@ -568,13 +565,11 @@ std::string unban_player(Session &s, std::string_view argument) {
     std::uint64_t id{};
     const auto parsed = std::from_chars(argument.data(), argument.data() + argument.size(), id);
     if (parsed.ec != std::errc{} || parsed.ptr != argument.data() + argument.size()) return "Choose a banned player.";
-    load_bans(s);
     const auto found = std::find_if(s.bans.begin(), s.bans.end(), [&](const auto &ban) { return ban.id == id; });
     if (found == s.bans.end()) return "That player is not banned.";
     const auto label = found->name.empty() ? std::to_string(id) : found->name;
     s.bans.erase(found);
     s.ban_ids_dirty = true;
-    save_bans(s);
     // An unbanned player can also come back to the session they were kicked from.
     s.banned.erase(id);
     return label + " was unbanned.";

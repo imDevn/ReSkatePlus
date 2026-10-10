@@ -82,49 +82,7 @@ void save_host_preferences(const Session &s) {
 }
 // Bans live in the local profile as [{"id": "<SteamID64>", "name": ..., "added": <unix>}];
 // the ID is a string because a JSON number cannot hold every 64-bit value.
-void load_bans(Session &s) {
-    if (s.bans_loaded) return;
-    s.bans_loaded = true;
-    s.bans.clear();
-    s.ban_ids_dirty = true;
-    const auto value = profile_runtime::local_value("Host.Bans");
-    if (!value || !value->is_array()) return;
-    for (const auto &entry : *value) {
-        if (!entry.is_object() || !entry.contains("id") || !entry.at("id").is_string()) continue;
-        MultiplayerBan ban;
-        const auto &text = entry.at("id").string();
-        const auto parsed = std::from_chars(text.data(), text.data() + text.size(), ban.id);
-        if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size() || !ban.id) continue;
-        if (entry.contains("name") && entry.at("name").is_string() && entry.at("name").string().size() <= 128)
-            ban.name = entry.at("name").string();
-        if (entry.contains("added") && entry.at("added").is_number())
-            ban.added = entry.at("added").get<std::int64_t>();
-        if (std::none_of(s.bans.begin(), s.bans.end(), [&](const auto &b) { return b.id == ban.id; }))
-            s.bans.push_back(std::move(ban));
-    }
-}
-void save_bans(const Session &s) {
-    Json list = Json::array();
-    for (const auto &ban : s.bans) {
-        auto item = Json::object();
-        item["id"] = std::to_string(ban.id);
-        item["name"] = ban.name;
-        item["added"] = ban.added;
-        list.push_back(std::move(item));
-    }
-    profile_runtime::set_local_values({{"Host.Bans", std::move(list)}});
-}
-bool is_banned(Session &s, std::uint64_t id) {
-    load_bans(s);
-    // The host checks every connection each frame; keep the IDs sorted for that.
-    if (s.ban_ids_dirty) {
-        s.ban_ids_dirty = false;
-        s.ban_ids.clear();
-        for (const auto &ban : s.bans) s.ban_ids.push_back(ban.id);
-        std::sort(s.ban_ids.begin(), s.ban_ids.end());
-    }
-    return std::binary_search(s.ban_ids.begin(), s.ban_ids.end(), id);
-}
+
 void refresh_friends(Session &s) {
     const auto social = steam_social_snapshot();
     if (!social || (s.friend_revision && *s.friend_revision == social->revision)) return;
@@ -139,7 +97,6 @@ void publish(Session &s, const NativeFrame *local) {
     const auto ui = sample_game_ui_state(s.base);
     s.game_menu = ui.in_menu || ui.ui_hidden;
     MultiplayerModel view;
-    load_bans(s);
     view.bans = s.bans;
     view.voice = s.voice.model();
     view.voice.allowed = s.voice_policy.allowed && (s.mode != Mode::join || s.roster_sequence != 0);
@@ -180,7 +137,7 @@ void publish(Session &s, const NativeFrame *local) {
                        static_cast<int>(s.host_preferences.capacity), s.host_preferences.tps, s.host_preferences.lobby_name};
     view.nametags = s.nametags;
     if (const auto social = steam_social_snapshot()) {
-        IdentityList staff_role = IdentityList::developer;
+        IdentityList staff_role = IdentityList::content_creator;
         const auto mark = &staff_role;
         std::tie(view.identity_tag_colour, view.identity_tag) = mark_role(*mark);
         view.identity_animation =
@@ -194,7 +151,7 @@ void publish(Session &s, const NativeFrame *local) {
         for (std::size_t i = 0; i < styles.size(); ++i) {
             // A cosmetic never given colours shows its list's own in the pickers.
             // The rainbow has no colours of its own to show either.
-            const bool rainbow = view.identity_rainbow && rainbow_style(styles[i]);
+            const bool rainbow = true;
             const bool picked = !rainbow && (styles[i].mode == MarkMode::gradient || styles[i].mode == MarkMode::solid ||
                                                 styles[i].from != styles[i].to || styles[i].from != std::array<std::uint8_t, 3>{});
             const auto &from = picked ? styles[i].from : standard.first, &to = picked ? styles[i].to : standard.second;

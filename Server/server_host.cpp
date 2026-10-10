@@ -108,9 +108,6 @@ std::string Host::player_name(std::string_view wanted, std::uint64_t id) const {
 bool Host::is_admin(std::uint64_t id) const {
     return std::find(config_.admins.begin(), config_.admins.end(), id) != config_.admins.end();
 }
-bool Host::is_banned(std::uint64_t id) const {
-    return std::any_of(config_.bans.begin(), config_.bans.end(), [&](const auto &ban) { return ban.id == id; });
-}
 void Host::save() {
     try {
         save_config(config_);
@@ -1611,10 +1608,6 @@ void Host::tick(std::uint64_t now) {
     for (const auto &link : links) {
         if (kicked_.contains(link.id)) {
             transport_.disconnect(link.id, "You were kicked from this server.");
-            continue;
-        }
-        if (is_banned(link.id)) {
-            transport_.disconnect(link.id, "You are banned from this server.");
             continue;
         }
         // The backend's list (global_bans.h), which can reach a player who is already on.

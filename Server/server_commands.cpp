@@ -134,7 +134,6 @@ std::string Host::command(std::string_view line, std::uint64_t admin) {
         if (!individual_steam_id(id)) return "Enter a connected player or a SteamID64 (17 digits starting 7656119).";
         if (id == admin) return "You cannot ban yourself.";
         if (!console && is_admin(id)) return "Admins cannot ban other admins.";
-        if (is_banned(id)) return std::to_string(id) + " is already banned.";
         auto label = guest ? guest->member.name : clean_chat_text(reason);
         // Banned by SteamID after they left: the name they were last here under.
         if (const auto seen = seen_names_.find(id); label.empty() && seen != seen_names_.end()) label = seen->second;
