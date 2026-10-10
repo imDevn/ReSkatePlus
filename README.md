@@ -37,7 +37,7 @@ The launcher, the runtime that loads into the game, the dedicated server, or eve
 
 ### Features+
 
-Compatible with servers running: **2.0.3**\
+Compatible with servers running: **2.0.4**\
 Older/newer versions _should_ work unless the packet structure or SteamAPI handshake validation has changed.
 
 - **No reserved cosmetics.**
@@ -230,6 +230,7 @@ Useful launcher flags:
 | `--log-trace` | the same as `--log-level=trace`; an explicit `--log-level` wins |
 | `-wconsole` | also show the log live in a console window while the game runs |
 | `--menu-key=0x2D`, `--console-key=0xC0` | menu and console keys (virtual-key codes) |
+| `-map <name>` | load that map as soon as the game is up, e.g. `-map "San Vansterdam"`; the name is a map's name, short name or asset path, or the start of one |
 | `--no-loose-files` | ignore loose Lua and config files beside the game |
 | `--gpu-diagnostics` | record extra detail when the graphics driver crashes (DRED) |
 
