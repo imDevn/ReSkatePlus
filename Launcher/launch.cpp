@@ -711,6 +711,7 @@ bool steam_signed_in() {
         command += quote_argument(argument);
     }
     set_environment(L"RESKATE_GPU_DIAGNOSTICS", options.gpu_diagnostics ? L"1" : L"0");
+    set_environment(L"RESKATE_DISCORD", options.discord ? L"1" : L"0");
     if (options.menu_key == options.console_key)
         throw std::runtime_error("The menu and console need different keys. Change one in Settings.");
     set_environment(L"RESKATE_MENU_KEY", std::to_wstring(options.menu_key).c_str());
