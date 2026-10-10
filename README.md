@@ -9,9 +9,6 @@ The launcher, the runtime that loads into the game, the dedicated server, or eve
 
 ## Features
 
-Compatible with servers running: **1.1.5**\
-Older/newer versions _should_ work unless the packet structure or SteamAPI handshake validation has changed.
-
 - **Offline play.** No EA servers needed. Your skater, outfits, unlocks and progress are saved on your PC,
   and the game runs even with Steam closed.
 - **Multiplayer.**
@@ -25,15 +22,14 @@ Older/newer versions _should_ work unless the packet structure or SteamAPI hands
   - World: time of day, population, district levels, rotating parks.
   - The **Park Editor**: place, move and save objects with freecam, snapping and undo.
   - Skater options: first person, movement, boosts, noclip.
+  - **Hall of Meat** (off by default): bail and see the bones you hurt, with a skate. 3 style Meat card.
   - Progression, controls, graphics and multiplayer settings.
 - **Mods.**
   - Drop a mod in `Mods/` and it is merged into the game at launch. Mods can add custom maps, loading
     screens, cosmetics and scripts.
   - Browse and install mods from the [Thunderstore community](https://thunderstore.io/c/reskate/) in the
     launcher.
-  - Disabled mods contribute no game data on the next launch. Most asset mod changes apply in game
-    without a restart; enabling or disabling a map that changes shared root shaders or materials
-    requires a restart. Enabled maps still share their root resources even before visiting them.
+  - Most mod changes apply in game without a restart.
 - **Launcher.**
   - Checks that you have the supported game build, and can download exactly that build with your Steam
     account.
@@ -41,14 +37,12 @@ Older/newer versions _should_ work unless the packet structure or SteamAPI hands
 
 ### Features+
 
+Compatible with servers running: **2.0.1**\
+Older/newer versions _should_ work unless the packet structure or SteamAPI handshake validation has changed.
+
 - **No reserved cosmetics.**
   - Full access to **all** content available inside the base game.
   - This includes limited time reedemable items, skate.Pass, store offers/bundles and all cosmetics/items that cost SVB.
-- **Hall of Meat**: Bail and see the bones you hurt, bruised ones yellow and broken ones red, with a
-  skate. 3 style Meat card, drawn with skate.'s own brush strokes: the bail's time, hits (head hits double, 
-  vehicles half again), broken bones,
-  road rash, airtime, fall and top speed, each scoring.
-- **Style editor.** Modify the look of tricks with keyframes, visible to other players.
 - **Random community parks.** Options to randomize the current community parks, can also randomize on game start.
 - **Deprecated/NSFW mods** Launcher toggles to enable showing every mod on the Thunderstore, wether they have been
   abandoned or marked as being not safe for work.
@@ -58,7 +52,7 @@ Older/newer versions _should_ work unless the packet structure or SteamAPI hands
 ## Getting started
 
 1. Download the latest `ReSkatePlus-<version>.zip` from
-   [Releases](https://github.com/imDevn/ReSkatePlus).
+   [Releases](https://github.com/imDevn/ReSkatePlus/releases).
 2. Extract `ReSkatePlusLauncher.exe` and `ReSkatePlus.dll` into either folder:
    - **your skate. folder**, beside `Skate.exe` (Steam → skate. → Manage → Browse local files); or
    - **an empty folder**, where the launcher installs the game for you (about 14 GB).
@@ -69,7 +63,31 @@ Older/newer versions _should_ work unless the packet structure or SteamAPI hands
      downloads only the files it needs.
 4. Press **PLAY**.
 
-ReSkate+ supports one game build at a time (Steam build `25414733`).
+ReSkate supports one game build at a time (Steam build `25414733`).
+
+### Linux (Proton)
+
+1. Install skate. with Steam and put `ReSkatePlusLauncher.exe` and `ReSkatePlus.dll` beside `Skate.exe`
+   (step 2 above, first option).
+2. In Steam → skate. → Properties → Launch Options, enter:
+
+   ```
+   bash -c 'exec "${@/EAAntiCheat.GameServiceLauncher.exe/ReSkateLauncher.exe}"' -- %command%
+   ```
+
+3. Press **Play** on skate. in your Steam library.
+
+Steam starts EA's anti-cheat launcher (`EAAntiCheat.GameServiceLauncher.exe`), not `Skate.exe`, and the
+anti-cheat refuses to run under Proton (*E111000B … Wine, Proton, and Steam Deck are not supported*).
+The launch option swaps it for ReSkate's launcher, which starts the game itself. Launching from the game's
+own Steam entry, rather than adding the launcher as a non-Steam game, keeps skate.'s app ID and its
+Proton prefix.
+
+Tested with ReSkate 1.1.3 and Proton Experimental on CachyOS: the launcher, the server browser, joining
+a public server and hosting a lobby. Steam Deck should work the same way but is untested. If you load a
+custom map and then join a server on another map, the screen can stay black
+([#31](https://github.com/Dingo-Shenanigans/ReSkate/issues/31)): load the server's map first.
+
 ### Controls
 
 | Key | Opens |
@@ -279,7 +297,6 @@ environment variable `RESKATE_CRASH_REPORTING=0`.
 ReSkate+ also keeps the game off EA's online services: the game's own crash reports, telemetry and
 remote configuration requests are turned off and blocked. Fast-travel artwork still comes from EA's
 image CDN (`dingo-dev-assets.akamaized.net`), which only downloads images.
-[contrib/ea-watch.ps1](contrib/ea-watch.ps1) shows what the game connects to, if you want to check.
 
 ## Third-party code
 

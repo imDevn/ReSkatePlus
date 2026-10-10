@@ -151,6 +151,7 @@ void publish(Session &s, const NativeFrame *local) {
     view.distances = s.distances;
     view.object_placement = s.object_placement;
     view.object_limit = s.object_limit;
+    view.object_scaling = s.object_scaling || s.server_admin || s.mode != Mode::join;
     view.object_limit_own = s.mode == Mode::host || s.server_admin ? 0 : s.object_limit; // as apply_object_limit gives this game
     view.objects_placed = s.mode == Mode::off ? 0 : static_cast<unsigned>(s.local_objects.objects().size());
     view.guest_noclip = s.guest_noclip;
@@ -178,14 +179,14 @@ void publish(Session &s, const NativeFrame *local) {
                        static_cast<int>(s.host_preferences.capacity), s.host_preferences.tps, s.host_preferences.lobby_name};
     view.nametags = s.nametags;
     if (const auto social = steam_social_snapshot()) {
-        IdentityList staff_role = IdentityList::staff;
-        auto mark = &staff_role;
+        IdentityList staff_role = IdentityList::developer;
+        const auto mark = &staff_role;
         std::tie(view.identity_tag_colour, view.identity_tag) = mark_role(*mark);
         view.identity_animation =
             *mark == IdentityList::developer ? "RAINBOW" : *mark == IdentityList::content_creator ? "RED" :
             *mark == IdentityList::centrix ? "BLUE" : *mark == IdentityList::staff ? "GREEN" : "GOLD";
         // A developer's standard is the rainbow already.
-        view.identity_rainbow = *mark == IdentityList::staff;
+        view.identity_rainbow = true; //*mark == IdentityList::staff;
         const auto styles = developer_hoodie_detail::own_styles.load();
         const auto standard = developer_hoodie_detail::standard_picks(*mark);
         view.identity_styles.resize(styles.size());
@@ -470,10 +471,6 @@ std::vector<MultiplayerChatCommand> chat_commands(const Session &s) {
         {"/help", "/help", "List these commands"},
         {"/tp", "/tp <player>", "Teleport beside a player (or /tp <x> <y> <z>)", "player"},
         {"/p", "/p <message>", "Talk to your party only"},
-        {"/mark-tag", "/mark-tag <on|off|toggle>", "Show or hide your identity tag (special users)."},
-        {"/mark-items", "/mark-items <on|off|toggle>", "Show or hide your identity items (special users)."},
-        {"/mark-style", "/mark-style <item> <mode> <rrggbb> <rrggbb> <speed>",
-         "Set a cosmetic style: item, mode(0=list,1=off,2=gradient,3=solid,4=rainbow), from,to hex, speed(0-2)"},
     };
     if (s.mode == Mode::host || s.mode == Mode::join) {
         list.push_back({"/party invite", "/party invite <player>", "Invite a player to your party", "player"});
@@ -495,10 +492,21 @@ std::vector<MultiplayerChatCommand> chat_commands(const Session &s) {
             list.push_back({"/vote kick", "/vote kick <player>", "Start a vote to kick a player", "player"});
         if (s.server_votes & server_vote_time)
             list.push_back({"/vote tod", "/vote tod <time>", "Vote for a time of day: morning, noon, afternoon, evening, night...", "time"});
-        if (s.server_votes) {
+        for (const auto &vote : s.server_custom_votes) {
+            std::string choices;
+            for (const auto &choice : vote.choices) choices += (choices.empty() ? "" : "|") + choice;
+            list.push_back({"/vote " + vote.name, "/vote " + vote.name + (choices.empty() ? "" : " <" + choices + ">"),
+                            vote.description.empty() ? "Start a vote this server defines" : "Start a vote: " + vote.description});
+        }
+        if (s.server_votes || !s.server_custom_votes.empty()) {
             list.push_back({"/yes", "/yes", "Vote yes in the running vote"});
             list.push_back({"/no", "/no", "Vote no in the running vote"});
         }
+        if (!s.server_custom_votes.empty()) list.push_back({"/vote list", "/vote list", "This server's own votes, and what each does"});
+        const auto polls = static_cast<ServerPolls>(s.server_polls);
+        if (polls == ServerPolls::everyone || (polls == ServerPolls::admins && s.server_admin))
+            list.push_back({"/poll", "/poll <question> | <answer> | <answer>...", "Ask everyone a question, with up to six answers"});
+        if (polls != ServerPolls::off) list.push_back({"/1", "/1, /2...", "Answer the running poll"});
         if (s.server_admin) {
             list.push_back({"/msg", "/msg <player> <message>", "Admin: message a player privately", "player"});
             list.push_back({"/msg-party", "/msg-party <player> <message>", "Admin: message everyone in a player's party", "player"});
@@ -509,7 +517,11 @@ std::vector<MultiplayerChatCommand> chat_commands(const Session &s) {
             list.push_back({"/tpall", "/tpall [player]", "Admin: teleport everyone to you (or to a player)", "player"});
             list.push_back({"/tphere", "/tphere <player>", "Admin: teleport a player to you", "player"});
             list.push_back({"/tod", "/tod <time>", "Admin: set the time of day", "time"});
-            list.push_back({"/votes", "/votes [map|kick|tod on|off|<percent>]", "Admin: the server's vote settings"});
+            list.push_back({"/votes", "/votes [<vote> on|off|<percent>|seconds|cooldown|min-players <n>]", "Admin: the server's vote settings"});
+            list.push_back({"/announce", "/announce <text>", "Admin: announce something to everyone, on a card on their screen"});
+            list.push_back({"/announcements", "/announcements [list|add <text>|remove <n>|interval <minutes>|off]",
+                            "Admin: the messages the server announces on a timer"});
+            list.push_back({"/poll end", "/poll end", "Admin: end the running poll now"});
             list.push_back({"/vote-cancel", "/vote-cancel", "Admin: stop the running vote"});
             list.push_back({"/map-pool", "/map-pool [add|remove <map>|clear]", "Admin: the maps players vote between and the rotation uses"});
             list.push_back({"/rotation", "/rotation [<minutes>|off]", "Admin: change the map on a timer, through the map pool"});
@@ -553,6 +565,20 @@ void publish_chat(Session &s) {
     for (const auto &peer : active_peers(s))
         if (listed(peer)) signature.add(peer.member.name.empty() ? s.transport.name(peer.member.id) : peer.member.name);
     for (const auto &asset : s.server_maps) signature.add(asset);
+    // The vote card: its tally, the player's answer, and the seconds left as they pass.
+    const auto now = now_us();
+    const unsigned vote_seconds = s.vote.id && s.vote.outcome == vote_running && s.vote_ends > now
+                                      ? static_cast<unsigned>((s.vote_ends - now + 999999) / 1000000) : 0;
+    signature.add(static_cast<std::uint64_t>(s.vote.id));
+    signature.add(static_cast<std::uint64_t>(s.vote.yes) << 32 | static_cast<std::uint64_t>(s.vote.no) << 16 | s.vote.needed);
+    signature.add(static_cast<std::uint64_t>(s.vote.outcome) << 40 | static_cast<std::uint64_t>(s.vote_mine) << 32 | vote_seconds);
+    for (const auto count : s.vote.counts) signature.add(static_cast<std::uint64_t>(count));
+    signature.add(static_cast<std::uint64_t>(s.server_polls));
+    for (const auto &vote : s.server_custom_votes) signature.add(vote.name);
+    // The announcement card, and the seconds it still shows.
+    const unsigned announcement_seconds = s.announcement.id && s.announcement_ends > now
+                                              ? static_cast<unsigned>((s.announcement_ends - now + 999999) / 1000000) : 0;
+    signature.add(static_cast<std::uint64_t>(s.announcement.id) << 16 | announcement_seconds);
     signature.add(static_cast<std::uint64_t>(s.chat.size()));
     if (!s.chat.empty()) {
         signature.add(s.chat.front().sequence);
@@ -574,6 +600,27 @@ void publish_chat(Session &s) {
     // (or the game's hidden UI) also closes an open chat box.
     view.available = (s.mode == Mode::host || s.mode == Mode::join) && s.chat_visible && !s.game_menu;
     view.latest = s.chat.empty() ? 0 : s.chat.back().sequence;
+    if (dedicated && s.vote.id) {
+        auto &vote = view.vote;
+        vote.id = s.vote.id;
+        vote.label = clean_chat_text(s.vote.label);
+        vote.yes = s.vote.yes;
+        vote.no = s.vote.no;
+        vote.needed = s.vote.needed;
+        vote.seconds = vote_seconds;
+        vote.outcome = s.vote.outcome;
+        vote.mine = s.vote_mine;
+        vote.may_vote = s.vote.target != s.transport.status().local_id;
+        vote.poll = s.vote.kind == server_vote_poll;
+        for (const auto &answer : s.vote.answers) vote.answers.push_back(clean_chat_text(answer));
+        vote.counts.assign(s.vote.counts.begin(), s.vote.counts.end());
+        const auto binds = local_profile_controller_bindings();
+        if (binds.available) {
+            vote.yes_bind = binds.vote_yes_combo;
+            vote.no_bind = binds.vote_no_combo;
+        }
+    }
+    if (dedicated && announcement_seconds) view.announcement = {s.announcement.id, clean_chat_text(s.announcement.text), announcement_seconds};
     view.lines.assign(s.chat.begin(), s.chat.end());
     // The filter masks each line once; lines leave the cache with the log.
     if (!s.chat_filter || s.chat.empty()) {
@@ -593,11 +640,16 @@ void publish_chat(Session &s) {
 std::pair<std::uint32_t, std::string> mark_role(IdentityList list) {
     switch (list) {
     case IdentityList::developer: return {nametag_developer, "Dev"};
-    case IdentityList::content_creator: return {nametag_creator, "Creator"};
+    case IdentityList::content_creator: return {nametag_creator, "Content Creator"};
     case IdentityList::centrix: return {nametag_centrix, "Centrix"};
     case IdentityList::staff: return {nametag_staff, "Staff"};
     default: return {nametag_homie, "Homie"};
     }
+}
+bool identity_link(Session &s, std::uint64_t other) {
+    if (identity_mark(other) || identity_mark(s.transport.status().local_id)) return true;
+    refresh_friends(s);
+    return std::binary_search(s.friend_ids.begin(), s.friend_ids.end(), other);
 }
 // The colour and tag a player gets, in chat and on their nametag. `marks` off leaves out who
 // the backend says they are: for a chat line that is not known to be theirs (chat proofs,
@@ -605,7 +657,7 @@ std::pair<std::uint32_t, std::string> mark_role(IdentityList list) {
 std::pair<std::uint32_t, std::string> player_role(Session &s, std::uint64_t sender, bool local, bool marks) {
     if (!sender) return {};
     const bool dedicated = dedicated_host(s);
-    if (dedicated && sender == s.host_id) return {nametag_admin, {}}; // the server itself
+    if (dedicated && sender == s.host_id) return {s.server_chat_badge, "Server"}; // the server itself
     const auto *peer = local ? nullptr : find_peer(s, sender);
     const bool vouched = local || (peer && steam_vouched(s, *peer));
     // Who the backend says a player is comes before what they are in this lobby, unless they
@@ -623,7 +675,14 @@ std::pair<std::uint32_t, std::string> player_role(Session &s, std::uint64_t send
 void add_chat(Session &s, std::uint64_t sender, std::string name, std::string text, bool local, bool marks) {
     if (name.empty()) name = sender ? "Player" : "ReSkate";
     auto [color, tag] = player_role(s, sender, local, marks);
-    s.chat.push_back({++s.chat_sequence, sender, now_us(), std::move(name), std::move(text), local, color, std::move(tag)});
+    // The dedicated server's own lines (its chat, and its answers sent to this player alone) stand out.
+    const bool server = dedicated_host(s) && (sender ? sender == s.host_id : name == "Server");
+    if (server && !sender) {
+        color = s.server_chat_badge;
+        tag = "Server";
+    }
+    s.chat.push_back({++s.chat_sequence, sender, now_us(), std::move(name), std::move(text), local, color, std::move(tag), {}, server,
+                      server ? s.server_chat_text : 0U});
     while (s.chat.size() > multiplayer_chat_history) s.chat.pop_front();
     publish_chat(s);
 }

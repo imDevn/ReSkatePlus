@@ -1,6 +1,7 @@
 #include "session_internal.h"
 #include "Extension/Multiplayer/Remote/native_cosmetics.h"
 #include "Extension/Multiplayer/Remote/native_audio.h"
+#include "Extension/Multiplayer/Remote/native_vfx.h"
 #include "Extension/Profile/local_profile_runtime.h"
 #include "Extension/Objects/network_object_runtime.h"
 #include "Extension/Multiplayer/Net/wire_codec.h"
@@ -222,10 +223,45 @@ std::string send_chat_command(Session &s, std::string_view typed) {
     if (!send_packet(s, s.host_id, message, true, false)) return "Could not reach the server.";
     // Party chat: the server relays it to the rest of the party, not back to us.
     const std::string_view sent = message.text;
+    // An answer to the vote typed in chat shows on the vote card like one given there.
+    if (s.vote.id && s.vote.outcome == vote_running) {
+        if (s.vote.kind == server_vote_poll) {
+            // "/2" or "/vote 2"
+            const auto number = sent.starts_with("/vote ") ? sent.substr(6) : sent.substr(1);
+            if (number.size() == 1 && number[0] >= '1' && static_cast<std::size_t>(number[0] - '0') <= s.vote.answers.size())
+                s.vote_mine = static_cast<std::uint8_t>(number[0] - '0');
+        } else if (sent == "/yes" || sent == "/y" || sent == "/vote yes" || sent == "/vote y") s.vote_mine = 1;
+        else if (sent == "/no" || sent == "/n" || sent == "/vote no" || sent == "/vote n") s.vote_mine = 2;
+    }
     if (sent.starts_with("/p ") && s.local_party) {
         const auto local = s.transport.status().local_id;
         add_chat(s, local, s.transport.name(local), "[Party] " + std::string(sent.substr(3)), true);
     }
+    return {};
+}
+std::string answer_server_poll(Session &s, std::size_t answer) {
+    if (!dedicated_host(s) || !s.vote.id || s.vote.outcome != vote_running || s.vote.kind != server_vote_poll)
+        return "No poll is running.";
+    if (answer >= s.vote.answers.size()) return "The poll has " + std::to_string(s.vote.answers.size()) + " answers.";
+    if (s.vote_mine == answer + 1) return {};
+    // Sent as the chat command, as an answer to a vote is.
+    auto message = packet(s, PacketKind::chat, now_us());
+    message.text = "/" + std::to_string(answer + 1);
+    if (!send_packet(s, s.host_id, message, true, false)) return "Could not reach the server.";
+    s.vote_mine = static_cast<std::uint8_t>(answer + 1);
+    return {};
+}
+std::string cast_server_vote(Session &s, bool yes) {
+    if (!dedicated_host(s) || !s.vote.id || s.vote.outcome != vote_running) return "No vote is running.";
+    if (s.vote.kind == server_vote_poll) return "This is a poll: answer it on its card, or with /1, /2...";
+    if (s.vote.target == s.transport.status().local_id) return "You cannot vote on your own kick.";
+    if (s.vote_mine == (yes ? 1 : 2)) return {};
+    // The server takes the answer as the chat command (server_votes.cpp); it is not a chat
+    // line, so the pace kept for those does not hold it back.
+    auto message = packet(s, PacketKind::chat, now_us());
+    message.text = yes ? "/yes" : "/no";
+    if (!send_packet(s, s.host_id, message, true, false)) return "Could not reach the server.";
+    s.vote_mine = yes ? 1 : 2;
     return {};
 }
 std::string send_party_chat(Session &s, std::string_view typed) {
@@ -300,15 +336,16 @@ void broadcast(Session &s, const Packet &packet, bool reliable, bool fresh, std:
     std::vector<Outgoing> outgoing;
     unsigned direct_sent{};
     const bool gameplay = packet.kind == PacketKind::pose || packet.kind == PacketKind::audio ||
-                          packet.kind == PacketKind::voice || packet.kind == PacketKind::cosmetics;
+                          packet.kind == PacketKind::voice || packet.kind == PacketKind::cosmetics ||
+                          packet.kind == PacketKind::effects;
     for (auto &p : active_peers(s)) {
         if (!p.handshaken || p.member.id == except ||
             (s.mode == Mode::host && gameplay && !p.world_ready) ||
-            (s.mode == Mode::join && p.member.id != s.host_id && !p.direct_ready))
+            (s.mode == Mode::join && p.member.id != s.host_id && (!p.direct_ready || dedicated_host(s))))
             continue;
         // Chat and throwdown messages always travel through the host, which relays
         // them once to everyone else; a direct copy as well would deliver them twice.
-        if ((packet.kind == PacketKind::chat || packet.kind == PacketKind::throwdown) && s.mode == Mode::join &&
+        if ((packet.kind == PacketKind::chat || packet.kind == PacketKind::throwdown || packet.kind == PacketKind::effects) && s.mode == Mode::join &&
             p.member.id != s.host_id)
             continue;
         if (packet.kind == PacketKind::voice) {
@@ -508,8 +545,7 @@ void update_physics_tuning(Session &s, const NativeFrame &local, std::uint64_t n
     // A guest whose host sets everyone's physics: the player's own edits stand down from the
     // moment of joining (the roster says otherwise, if it does) and through travel, and what
     // the host shares beyond its tuning is theirs. A dedicated server shares the game's own.
-    const bool match_host_pref = profile_runtime::local_preference("Trainer.MatchHostTuning").value_or(true);
-    const bool enforced = s.mode == Mode::join && (s.enforce_tuning || (match_host_pref && (dedicated_host(s) || s.host_tuning.has_value())));
+    const bool enforced = s.mode == Mode::join && s.enforce_tuning;
     set_session_tuning_enforced(enforced);
     if (enforced && s.host_extras && !dedicated_host(s)) set_host_physics_extras(*s.host_extras);
     else set_host_physics_extras({});
@@ -558,7 +594,7 @@ void update_physics_tuning(Session &s, const NativeFrame &local, std::uint64_t n
         broadcast(s, p, true, false, now);
         return;
     }
-    if (s.mode == Mode::join && s.roster_sequence && enforced) {
+    if (s.mode == Mode::join && s.roster_sequence && s.enforce_tuning) {
         if (!world_playing(s, local)) return; // kept as it is while travelling
         physics_tuning::prepare();
         if (dedicated_host(s))
@@ -697,6 +733,12 @@ void send_local(Session &s, const NativeFrame &local, std::uint64_t now, std::ui
             s.pose_dump.write(reinterpret_cast<const char *>(raw.data()), static_cast<std::streamsize>(raw.size()));
         }
         deliver(a, std::any_of(a.audio.begin(), a.audio.end(), [](const auto &sample) { return sample.event; }), true);
+    }
+    // This skater's contacts with the world, for the sparks and dust others see on it.
+    if (auto impacts = drain_impacts(); !impacts.empty() && s.sync_effects) {
+        auto e = packet(s, PacketKind::effects, now);
+        e.impacts = std::move(impacts);
+        deliver(e, false, true);
     }
 }
 } // namespace session_detail

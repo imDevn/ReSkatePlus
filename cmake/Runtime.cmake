@@ -12,9 +12,6 @@ add_library(dingosdk_runtime SHARED
     Extension/Console/commands.cpp
     Extension/Console/perf_commands.cpp
     Extension/Skater/console_commands.cpp
-    Extension/Debug/console_commands.cpp
-    Extension/Debug/debug_panel.cpp
-    Extension/Debug/debug_panel_model.cpp
     Extension/Multiplayer/console_commands.cpp
     Extension/Multiplayer/Session/session.cpp
     Extension/Multiplayer/Session/session_view.cpp
@@ -34,6 +31,7 @@ add_library(dingosdk_runtime SHARED
     Extension/Multiplayer/Remote/puppet_cost.cpp
     Extension/Multiplayer/Remote/native_cosmetics.cpp
     Extension/Multiplayer/Remote/native_audio.cpp
+    Extension/Multiplayer/Remote/native_vfx.cpp
     Extension/Multiplayer/Voice/voice_chat.cpp
     Extension/Multiplayer/Voice/native_voice.cpp
     Extension/Multiplayer/Hud/native_player_ui.cpp
@@ -95,11 +93,11 @@ add_library(dingosdk_runtime SHARED
     Extension/World/physics_world_size.cpp
     Extension/Rendering/display_startup.cpp
     Extension/Rendering/replay_export.cpp
-    Extension/Rendering/local_skater_render.cpp
     Engine/Game/World/world_model.cpp
     Extension/World/level_loading.cpp
     Extension/World/loading_screen.cpp
     Extension/Customization/preset_lookup_guard.cpp
+    Extension/Boot/exit_watch.cpp
     Extension/Customization/developer_hoodie.cpp
     Extension/Customization/developer_board.cpp
     Extension/Skater/skater_model.cpp
@@ -110,28 +108,19 @@ add_library(dingosdk_runtime SHARED
     Extension/Skater/client_first_person.cpp
     Extension/Skater/client_debug.cpp
     Extension/Skater/ai_skaters.cpp
-    Extension/Skater/local_skater.cpp
-    Extension/Skater/local_skater_state.cpp
-    Extension/Skater/local_skater_body.cpp
-    Extension/Skater/skeleton_mesh.cpp
-    Engine/Game/Skater/skater_skeleton.cpp
-    Extension/Skater/skater_body_debug.cpp
-    Extension/Skater/skater_state_debug.cpp
-    Extension/Skater/style_layer.cpp
-    Extension/Skater/style_commands.cpp
-    Extension/Skater/style_editor.cpp
-    Extension/Skater/style_stage.cpp
-    Extension/Skater/style_takes.cpp
-    Extension/Skater/style_file.cpp
-    Extension/Skater/style_skeleton.cpp
     Extension/Skater/no_bail.cpp
-    Extension/Skater/hall_of_meat.cpp
-    Extension/Skater/hall_of_meat_card.cpp
-    Extension/Skater/hall_of_meat_debug.cpp
-    Extension/Skater/hall_of_meat_model.cpp
     Extension/Skater/physics_tuning.cpp
     Extension/Multiplayer/Remote/remote_collision.cpp
     Extension/Skater/physics_tuning_model.cpp
+    Extension/HallOfMeat/hall_of_meat.cpp
+    Extension/HallOfMeat/hall_of_meat_card.cpp
+    Extension/HallOfMeat/hall_of_meat_commands.cpp
+    Extension/HallOfMeat/hall_of_meat_hud.cpp
+    Extension/HallOfMeat/hall_of_meat_model.cpp
+    Extension/HallOfMeat/hall_of_meat_render.cpp
+    Extension/HallOfMeat/hall_of_meat_skater.cpp
+    Extension/HallOfMeat/hall_of_meat_skeleton.cpp
+    Extension/HallOfMeat/hall_of_meat_slow_motion.cpp
     Extension/Trainer/trainer.cpp
     Extension/Trainer/trainer_presets.cpp
     Extension/Trainer/trainer_jump.cpp
@@ -185,6 +174,7 @@ add_library(dingosdk_runtime SHARED
     Extension/World/visual_environment.cpp
     Extension/World/local_population_controls.cpp
     Extension/World/native_route_lookahead.cpp
+    Extension/World/unload_guard.cpp
     Extension/World/local_world_controls.cpp
     Extension/World/local_atmosphere_controls.cpp
     Extension/Rendering/local_graphics_controls.cpp
@@ -234,7 +224,7 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/assets")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/assets")
 endif()
 # Chat emotes (Better Chat's pack format; Extension/UI/Overlay/chat_emotes.h), built into
-# ReSkatePlus.dll when the repository has assets/emotes/emotes.json and emotes.png.
+# ReSkate.dll when the repository has assets/emotes/emotes.json and emotes.png.
 set(dingosdk_emotes "${PROJECT_SOURCE_DIR}/assets/emotes")
 if(EXISTS "${dingosdk_emotes}")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${dingosdk_emotes}")

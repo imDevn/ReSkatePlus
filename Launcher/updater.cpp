@@ -247,7 +247,7 @@ void http_stream(const std::wstring& url, std::uint64_t limit, int timeout_ms,
     http_get(url, limit, timeout_ms, sink);
 }
 
-bool binary_updates_enabled() noexcept { return true; }
+bool binary_updates_enabled() noexcept { return launcher_binary_updates; }
 
 Config parse_config(std::string_view text) {
     const auto root = Json::parse(text, JsonLimits{max_config_bytes, 8, 4096});

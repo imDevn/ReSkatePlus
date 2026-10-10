@@ -1,14 +1,13 @@
 if(WIN32)
-    set(FILE_NAME "ReSkatePlusLauncher.exe" CACHE STRING "Filename")
-    set(FILE_TYPE "VFT_APP" CACHE STRING "File type")
     add_executable(dingosdk_launcher WIN32 Launcher/main.cpp Launcher/launch.cpp
         Launcher/gui.cpp Launcher/gui_launcher.cpp Launcher/gui_renderer.cpp Launcher/gui_home.cpp
         Launcher/gui_settings.cpp Launcher/gui_sign_in.cpp Launcher/gui_mods.cpp Launcher/gui_mods_browse.cpp
+        Launcher/gui_gamepad.cpp Launcher/gamepad_input.cpp
         Launcher/updater.cpp Launcher/mod_manager.cpp Launcher/thunderstore.cpp Launcher/problem.h)
     target_link_libraries(dingosdk_launcher PRIVATE dingosdk_logging dingosdk_content_cache_install dingosdk_world_layer_scan dingosdk_launcher_support dingosdk_initfs
-        dingosdk_mod_list dingosdk_mods dingosdk_json dingosdk_miniz dingosdk_imgui winhttp shell32 dwmapi windowscodecs ole32)
-    set_target_properties(dingosdk_launcher PROPERTIES OUTPUT_NAME version_internal_name)
-    dingosdk_version_info(dingosdk_launcher "ReSkate+ Launcher" version_file_name VFT_APP)
+        dingosdk_mod_list dingosdk_mods dingosdk_json dingosdk_miniz dingosdk_imgui dingosdk_playstation_input winhttp shell32 dwmapi windowscodecs ole32)
+    set_target_properties(dingosdk_launcher PROPERTIES OUTPUT_NAME "ReSkatePlusLauncher")
+    dingosdk_version_info(dingosdk_launcher "ReSkate+ Launcher" "ReSkatePlusLauncher.exe" VFT_APP)
 endif()
 
 option(DINGOSDK_BUILD_LAUNCHER_TESTS "Build launcher mod manager regression tests" OFF)
@@ -21,6 +20,13 @@ if(DINGOSDK_BUILD_LAUNCHER_TESTS AND WIN32)
     target_link_libraries(dingosdk_thunderstore_tests PRIVATE dingosdk_json dingosdk_miniz)
     target_include_directories(dingosdk_thunderstore_tests PRIVATE "${PROJECT_SOURCE_DIR}")
     add_test(NAME launcher_thunderstore COMMAND dingosdk_thunderstore_tests)
+    add_executable(dingosdk_gamepad_input_tests Launcher/Test/gamepad_input_tests.cpp Launcher/gamepad_input.cpp)
+    target_link_libraries(dingosdk_gamepad_input_tests PRIVATE dingosdk_imgui)
+    target_include_directories(dingosdk_gamepad_input_tests PRIVATE "${PROJECT_SOURCE_DIR}")
+    add_test(NAME launcher_gamepad_input COMMAND dingosdk_gamepad_input_tests)
+    add_executable(dingosdk_depot_output_tests Launcher/Test/depot_output_tests.cpp)
+    target_include_directories(dingosdk_depot_output_tests PRIVATE "${PROJECT_SOURCE_DIR}")
+    add_test(NAME launcher_depot_output COMMAND dingosdk_depot_output_tests)
     add_executable(dingosdk_content_catalogs_tests Engine/Vfs/Test/content_catalogs_tests.cpp)
     target_link_libraries(dingosdk_content_catalogs_tests PRIVATE dingosdk_content_cache)
     add_test(NAME content_catalogs COMMAND dingosdk_content_catalogs_tests)
@@ -132,15 +138,34 @@ if(WIN32)
 endif()
 
 # Off for local builds so a deployed development DLL is never replaced by a release.
-option(DINGOSDK_LAUNCHER_AUTO_UPDATE "Let the launcher replace itself and ReSkatePlus.dll from the launcher config" ON)
-set(DINGOSDK_RELEASE_REPO "imDevn/ReSkatePlus")
+option(DINGOSDK_LAUNCHER_AUTO_UPDATE "Let the launcher replace itself and ReSkatePlus.dll from the launcher config" OFF)
 
+# Updates come from the public GitHub releases of DINGOSDK_RELEASE_REPO: the launcher and
+# server read launcher.json (game depot/manifest and the pinned downloads) from the latest
+# release. No credentials are built in. Build folders configured before releases moved
+# still cache the old private repo, which no public build can read.
+if(DINGOSDK_RELEASE_REPO STREQUAL "Dingo-Shenanigans/DingoSDK")
+    unset(DINGOSDK_RELEASE_REPO CACHE)
+endif()
+set(DINGOSDK_RELEASE_REPO "imDevn/ReSkatePlus" CACHE STRING "Public GitHub owner/repo whose releases update the launcher")
+set(launcher_release_repo "${DINGOSDK_RELEASE_REPO}")
+if(NOT launcher_release_repo MATCHES "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+    message(FATAL_ERROR "DINGOSDK_RELEASE_REPO must be owner/repo")
+endif()
 if(DINGOSDK_LAUNCHER_AUTO_UPDATE)
     set(launcher_binary_updates true)
 else()
     set(launcher_binary_updates false)
 endif()
 configure_file(cmake/templates/launcher_update_config.h.in generated/launcher_update_config.h @ONLY)
+
+if(WIN32)
+    # ReSkateEmotePacker: a folder of pictures and GIFs -> the chat emote pack (emotes.json +
+    # emotes.png) that ReSkate.dll bakes in from assets/emotes.
+    add_executable(dingosdk_emote_packer EmotePacker/main.cpp)
+    target_link_libraries(dingosdk_emote_packer PRIVATE dingosdk_json windowscodecs ole32)
+    set_target_properties(dingosdk_emote_packer PROPERTIES OUTPUT_NAME "ReSkatePlusEmotePacker")
+endif()
 
 # ReSkate dedicated server: a headless session host. It runs from its own folder
 # next to steam_api64.dll and the Steam client files; no game install needed.
@@ -152,5 +177,16 @@ add_executable(dingosdk_server Server/main.cpp Server/server_host.cpp Server/ser
     Extension/Multiplayer/Steam/steam_transport.cpp Extension/Multiplayer/Net/protocol.cpp
     Extension/Multiplayer/Net/delta_codec.cpp Extension/Multiplayer/Net/wire_codec.cpp
     Extension/Multiplayer/Remote/playback_buffers.cpp Extension/Multiplayer/Session/password.cpp
-    Server/server_activity.cpp Server/server_votes.cpp Extension/Throwdowns/throwdown_wire.cpp)
+    Server/server_activity.cpp Server/server_votes.cpp Server/server_commands.cpp Extension/Throwdowns/throwdown_wire.cpp)
 target_include_directories(dingosdk_server SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/External/steam_networking")
+if(WIN32)
+    target_link_libraries(dingosdk_server PRIVATE dingosdk_launcher_support dingosdk_world_layer_scan dingosdk_json
+        dingosdk_lz4 dingosdk_zstd dingosdk_logging dingosdk_miniz dingosdk_word_filter dingosdk_https winhttp bcrypt winmm)
+    set_target_properties(dingosdk_server PROPERTIES OUTPUT_NAME "ReSkatePlusServer")
+    dingosdk_version_info(dingosdk_server "ReSkate+ Dedicated Server" "ReSkatePlusServer.exe" VFT_APP)
+else()
+    find_package(OpenSSL REQUIRED)
+    target_link_libraries(dingosdk_server PRIVATE dingosdk_launcher_support dingosdk_world_layer_scan dingosdk_json
+        dingosdk_lz4 dingosdk_zstd dingosdk_miniz dingosdk_word_filter OpenSSL::Crypto dl pthread)
+    set_target_properties(dingosdk_server PROPERTIES OUTPUT_NAME "ReSkatePlusServer")
+endif()

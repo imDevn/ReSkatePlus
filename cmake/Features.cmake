@@ -33,4 +33,3 @@ add_library(dingosdk_local_profile STATIC
 target_link_libraries(dingosdk_local_profile PUBLIC dingosdk_fast_travel_unlock dingosdk_content_cache dingosdk_json dingosdk_storage dingosdk_mod_list)
 
 include(cmake/ProfileData.cmake)
-

@@ -30,13 +30,11 @@ StartResult start(const std::filesystem::path& log_directory) noexcept {
         auto url = environment(L"RESKATE_BACKTRACE_URL");
         if (url.empty()) url = configured_url;
         if (url.empty()) return StartResult::disabled;
-        // Avoid constructing a SharedReport temporary (large stack) just to query array size.
-        if (!url.starts_with(L"https://") || url.size() >= std::tuple_size<decltype(SharedReport::url)>::value) return StartResult::failed;
+        if (!url.starts_with(L"https://") || url.size() >= SharedReport{}.url.size()) return StartResult::failed;
         HMODULE module{};
         if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                 reinterpret_cast<LPCWSTR>(&handles), &module)) return StartResult::failed;
-        // Large buffers moved to heap to avoid excessive stack usage (C6262).
-        std::vector<wchar_t> module_path(32768), process_path(32768);
+        std::array<wchar_t, 32768> module_path{}, process_path{};
         const auto module_size = GetModuleFileNameW(module, module_path.data(), static_cast<DWORD>(module_path.size()));
         const auto process_size = GetModuleFileNameW(nullptr, process_path.data(), static_cast<DWORD>(process_path.size()));
         if (!module_size || module_size >= module_path.size() || !process_size || process_size >= process_path.size())
@@ -55,8 +53,7 @@ StartResult start(const std::filesystem::path& log_directory) noexcept {
         }
         View view{MapViewOfFile(owned[mapping].value, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SharedReport))};
         if (!view.value) return StartResult::failed;
-        // Value-initialize SharedReport in-place without creating a large stack temporary.
-        auto* shared = new (view.value) SharedReport();
+        auto* shared = new (view.value) SharedReport{};
         if (!copy(shared->url, url) || !copy(shared->directory, std::filesystem::absolute(log_directory / L"crashes").wstring()) ||
                 !copy(shared->application, std::filesystem::path(process_path.data()).filename().wstring())) return StartResult::failed;
         // Frostbite handles some fatal exceptions itself and writes a native dump

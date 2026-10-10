@@ -32,13 +32,6 @@ inline bool peek_bytes(std::uintptr_t address, void* destination, std::size_t si
 }
 template<class T> requires std::is_trivially_copyable_v<T>
 bool peek(std::uintptr_t address, T& value) noexcept { return peek_bytes(address, &value, sizeof(value)); }
-// The pointer stored at object + offset, or 0 when the object or the stored value is not a user-mode address.
-inline std::uintptr_t peek_pointer(std::uintptr_t object, std::uintptr_t offset = 0) noexcept {
-    std::uintptr_t value{};
-    if (object < 0x10000 || object > highest_user_address - offset || !peek(object + offset, value) || value < 0x10000 ||
-        value > highest_user_address - 0x10000) return 0;
-    return value;
-}
 
 // A NUL-terminated string copied the same way: the length (terminator written at destination[length]),
 // or -1 if it is unreadable or has no terminator within capacity bytes. Reads byte by byte, so it never
@@ -47,8 +40,10 @@ inline std::ptrdiff_t peek_cstring(std::uintptr_t address, char* destination, st
     if (!destination || !capacity || address < 0x10000 || address > highest_user_address - capacity) return -1;
     __try {
         const auto* source = reinterpret_cast<const char*>(address);
-        for (std::size_t i = 0; i < capacity; ++i)
-            if (!(destination[i] = source[i])) return static_cast<std::ptrdiff_t>(i);
+        for (std::size_t i = 0; i < capacity; ++i) {
+            destination[i] = source[i];
+            if (destination[i] == '\0') return static_cast<std::ptrdiff_t>(i);
+        }
         return -1;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return -1;
